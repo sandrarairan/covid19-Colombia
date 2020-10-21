@@ -1,0 +1,2745 @@
+---
+title: "Covid19 Colombia"
+author: "Sandra Rairán"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    social: menu
+    theme: cosmo
+    source_code: embed
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(tidyr)
+library(RColorBrewer)
+library(leaflet)
+library(ggplot2)
+library(lubridate)
+library(tidyverse)
+library(prophet)
+
+
+COVID19_Colombia<- read.csv("Casos_positivos_de_COVID-19_en_Colombia.csv")
+#eliminar las ciudades que tiene valor cero y no el nombre d ela ciudad
+#COVID19_Colombia <- COVID19_Colombia[-which(COVID19_Colombia$Ciudad.de.ubicación == "0" ), ]
+ COVID19_Colombia$Ciudad.de.ubicación <- tolower(COVID19_Colombia$Ciudad.de.ubicación)
+ #T00:00:00.000
+ COVID19_Colombia$Fecha.diagnostico  <-gsub("T00:00:00.000", "",  COVID19_Colombia$Fecha.diagnostico)
+ 
+ #T23:59:44.000
+  COVID19_Colombia$Fecha.diagnostico  <-gsub("T23:59:44.000", "",  COVID19_Colombia$Fecha.diagnostico)
+ 
+ 
+ #2020-12-04T00:00:00.000	
+  #COVID19_Colombia$Fecha.de.diagnóstico  <-gsub("2020-12-04T00:00:00.000", "12/04/2020", COVID19_Colombia$Fecha.de.diagnóstico)
+  
+COVID19_Colombia$fecha.reporte.web  <-gsub("T00:00:00.000", "",  COVID19_Colombia$fecha.reporte.web )
+ 
+ #T23:59:44.000
+  COVID19_Colombia$fecha.reporte.web  <-gsub("T23:59:44.000", "",  COVID19_Colombia$fecha.reporte.web)
+  
+ # convertir la fecha en Y-M-D
+ #COVID19_Colombia$Fecha.diagnostico =  parse_date_time(COVID19_Colombia$Fecha.diagnostico , orders = c("ymd", "dmy", "mdy"))
+ COVID19_Colombia$Fecha.diagnostico <- as.Date(COVID19_Colombia$Fecha.diagnostico)
+ 
+ 
+ # convertir la fecha en Y-M-D
+ #COVID19_Colombia$Fecha.diagnostico =  parse_date_time(COVID19_Colombia$Fecha.diagnostico , orders = c("ymd", "dmy", "mdy"))
+ COVID19_Colombia$fecha.reporte.web <- as.Date(COVID19_Colombia$fecha.reporte.web)
+ 
+ 
+municipioscolombia<- read.csv("municipioscolombia.csv")
+
+
+
+municipioscolombia = read.table("municipioscolombia.csv", header=T, sep="," , dec=".")
+names (municipioscolombia)
+
+#Para cambiar los nombres de las variables del DF , hacemos lo siguiente.
+
+names (municipioscolombia) = c("Codigo", "Nombre", "Codigo_departamento", "Nombre_departamento", "Latitud", "Longitud" )
+names (municipioscolombia)
+
+#c(250002, "Chía", 25, "Cundinamarca", 4.8587599, -74.0586624 )
+
+#municipioscolombia <- municipioscolombia[-1097,] # Eliminar la fila 
+
+
+#Creando una neuva fila de chocó
+choco<-data.frame(Codigo=c(27),
+              Nombre=c("choco´"),
+              Codigo_departamento=c(27),
+              Nombre_departamento=c("Chocó"),
+              Latitud=c("5.6918802"),
+              Longitud=c(-76.6583481)) # Creando un DF con las nuevas oservaciones de choco
+municipioscolombia<-rbind(municipioscolombia,choco)
+
+#Creando una neuva fila de antioquia
+antioquia<-data.frame(Codigo=c(5),
+              Nombre=c("antioquia´"),
+              Codigo_departamento=c(5),
+              Nombre_departamento=c("Antioquia"),
+              Latitud=c("6.55"),
+              Longitud=c(-75.817)) # Creando un DF con las nuevas oservaciones de antioquia
+municipioscolombia<-rbind(municipioscolombia,antioquia)
+
+
+
+
+#amazonas
+amazonas<-data.frame(Codigo=c(91),
+              Nombre=c("amazonas"),
+              Codigo_departamento=c(91),
+              Nombre_departamento=c("Amazonas"),
+              Latitud=c("-4.21528"),
+              Longitud=c(-69.94056)) # Creando un DF con las nuevas oservaciones de choco
+municipioscolombia<-rbind(municipioscolombia,amazonas)
+
+#yavaraté
+yavaraté<-data.frame(Codigo=c(97889),
+              Nombre=c("yavaraté"),
+              Codigo_departamento=c(97),
+              Nombre_departamento=c("Vaupés"),
+              Latitud=c("0.614879"),
+              Longitud=c(-69.2081)) # Creando un DF con las nuevas oservaciones de yavaraté
+municipioscolombia<-rbind(municipioscolombia,yavaraté)
+
+
+magdalena<-data.frame(Codigo=c(47),
+              Nombre=c("magdalena"),
+              Codigo_departamento=c(47),
+              Nombre_departamento=c("Magdalena"),
+              Latitud=c("11.233"),
+              Longitud=c(-74.2)) # Creando un DF con las nuevas oservaciones de yavaraté
+municipioscolombia<-rbind(municipioscolombia,magdalena)
+
+
+
+#ordenar por nombre
+municipioscolombia <- arrange(municipioscolombia,Nombre)
+
+municipioscolombia$Latitud <- as.numeric(as.character(municipioscolombia$Latitud))
+
+#str(COVID19_Colombia)
+#str(municipioscolombia)
+
+
+#COVID19_Colombia$Ciudad.de.ubicación <-gsub("Cali", "Cali", COVID19_Colombia$Ciudad.de.ubicación)
+
+#COVID19_Colombia$Ciudad.de.ubicación <-gsub("CALI", "Cali", COVID19_Colombia$Ciudad.de.ubicación)
+
+COVID19_Colombia$atención <-gsub("casa", "Casa", COVID19_Colombia$atención)
+COVID19_Colombia$atención <-gsub("CASA", "Casa", COVID19_Colombia$atención)
+COVID19_Colombia$atención <-gsub("hospital", "Hospital", COVID19_Colombia$atención)
+COVID19_Colombia$atención <-gsub("HOSPITAL", "Hospital", COVID19_Colombia$atención)
+COVID19_Colombia$Ciudad.de.ubicación  <-gsub("pereirea", "pereira", COVID19_Colombia$Ciudad.de.ubicación)
+#COVID19_Colombia$Ciudad.de.ubicación  <-gsub("risaralda", "pereira", COVID19_Colombia$Ciudad.de.ubicación)
+COVID19_Colombia$Departamento.o.Distrito <-gsub("Archipiélago de San Andrés Providencia y Santa Catalina", "san andrés", COVID19_Colombia$Departamento.o.Distrito )
+	
+
+#COVID19_Colombia$atención <-gsub("Recuperado (Hospital)", "Recuperado", COVID19_Colombia$atención)
+
+
+COVID19_Colombia<- COVID19_Colombia %>%
+  mutate(
+    Codigo = case_when(
+      Ciudad.de.ubicación == "Bogotá"  ~ 11001,
+      Ciudad.de.ubicación == "bogota"  ~ 11001,
+      Ciudad.de.ubicación == "bogotá d.c."  ~ 11001,
+      Ciudad.de.ubicación == "Buga"  ~ 76111,
+      Ciudad.de.ubicación == "Medellín"  ~ 5001,
+      Ciudad.de.ubicación == "Medellin"  ~ 5001,
+      Ciudad.de.ubicación == "Itagüi"  ~ 5360,
+      Ciudad.de.ubicación == "Itagüí"  ~ 5360,
+      Ciudad.de.ubicación == "Itagui"  ~ 5360,
+      Ciudad.de.ubicación == "Cartagena"  ~ 13001,
+      Ciudad.de.ubicación == "cartagena de indias"  ~ 13001,
+      Ciudad.de.ubicación == "Neiva"  ~ 41001,
+      Ciudad.de.ubicación == "Palmira"  ~ 76520,
+      Ciudad.de.ubicación == "Villavicencio"  ~ 50001,
+      Ciudad.de.ubicación == "Rionegro"  ~ 68615,
+      Ciudad.de.ubicación == "Cali"  ~ 76001,
+      Ciudad.de.ubicación == "Dosquebradas"  ~ 66170,
+      Ciudad.de.ubicación == "Cúcuta"  ~ 54001,
+      Ciudad.de.ubicación == "Cucuta"  ~ 54001,
+      Ciudad.de.ubicación == "Manizales"  ~ 17001,
+      Ciudad.de.ubicación == "Subachoque"  ~ 	25769,
+      Ciudad.de.ubicación == "Soacha"  ~ 25754,
+      Ciudad.de.ubicación == "Barranquilla"  ~ 8001,
+      Ciudad.de.ubicación == "Armenia"  ~ 63001,
+      Ciudad.de.ubicación == "Pereira"  ~ 66001,
+      Ciudad.de.ubicación == "Cajicá"  ~ 25126,
+      Ciudad.de.ubicación == "Cajica"  ~ 25126,
+      Ciudad.de.ubicación == "Ibagué"  ~ 73001,
+      Ciudad.de.ubicación == "Ibague"  ~ 73001,
+      Ciudad.de.ubicación == "Bucaramanga"  ~ 68001,
+      Ciudad.de.ubicación == "Popayán"  ~ 19001,
+      Ciudad.de.ubicación == "Popayan"  ~ 19001,
+      Ciudad.de.ubicación == "Viterbo"  ~ 17877,
+      Ciudad.de.ubicación == "Anapoima"  ~ 25035,
+      Ciudad.de.ubicación == "La Estrella"  ~ 5380,
+      Ciudad.de.ubicación == "Envigado"  ~ 5266,
+      Ciudad.de.ubicación == "Santa Marta"  ~ 47001,
+      Ciudad.de.ubicación == "Chía"  ~ 	25175,
+      Ciudad.de.ubicación == "Chia"  ~ 	25175,
+      Ciudad.de.ubicación == "Madrid"  ~ 25430,
+      Ciudad.de.ubicación == "Villa del Rosario"  ~ 54874,
+      Ciudad.de.ubicación == "Cartago"  ~ 76147,
+      Ciudad.de.ubicación == "Guarne"  ~ 5318,
+      Ciudad.de.ubicación == "Bello"  ~ 5088,
+      Ciudad.de.ubicación == "Calarcá"  ~ 63130,
+      Ciudad.de.ubicación == "Calarca"  ~ 63130,
+      Ciudad.de.ubicación == "Valledupar"  ~ 20001,
+      Ciudad.de.ubicación == "La Dorada"  ~ 17380,
+      Ciudad.de.ubicación == "Chinchiná"  ~ 17174,
+      Ciudad.de.ubicación == "Chinchina"  ~ 17174,
+      Ciudad.de.ubicación == "San Andrés"  ~ 68669,
+      Ciudad.de.ubicación == "San Andres"  ~ 68669,
+      Ciudad.de.ubicación == "Yumbo"  ~ 76892,
+      Ciudad.de.ubicación == "Yopal"  ~ 85001,
+      Ciudad.de.ubicación == "Guatapé"  ~ 5321,
+      Ciudad.de.ubicación == "Guatape"  ~ 5321,
+      Ciudad.de.ubicación == "Cota"  ~ 25214,
+      Ciudad.de.ubicación == "Sabaneta"  ~ 5631,
+      Ciudad.de.ubicación == "Villamaría"  ~ 17873,
+      Ciudad.de.ubicación == "Villamaria"  ~ 17873,
+      Ciudad.de.ubicación == "Trujillo"  ~ 76828,
+      Ciudad.de.ubicación == "Pacho"  ~ 25513,
+      Ciudad.de.ubicación == "El Retiro"  ~ 5607,
+      Ciudad.de.ubicación == "Apartadó"  ~ 5045,
+      Ciudad.de.ubicación == "Apartado"  ~ 5045,
+      Ciudad.de.ubicación == "Ipiales"  ~ 52356,
+      Ciudad.de.ubicación == "Mosquera"  ~ 25473,
+      Ciudad.de.ubicación == "La Unión"  ~ 76400,
+      Ciudad.de.ubicación == "La Union"  ~ 76400,
+      Ciudad.de.ubicación == "Fusagasugá"  ~ 25290,
+      Ciudad.de.ubicación == "Fusagasuga"  ~ 25290,
+      Ciudad.de.ubicación == "La Calera"  ~ 25377,
+      Ciudad.de.ubicación == "Villeta"  ~ 	25875,
+      Ciudad.de.ubicación == "Palermo"  ~ 41524,
+      Ciudad.de.ubicación == "San Pedro"  ~ 76670,
+      Ciudad.de.ubicación == "Anapoima"  ~ 25035,
+      Ciudad.de.ubicación == "Darién"  ~ 760530,
+      Ciudad.de.ubicación == "Darién"  ~ 76126,
+      Ciudad.de.ubicación == "Darién"  ~ 76126,
+      Ciudad.de.ubicación == "Agrado"  ~ 41013,
+      Ciudad.de.ubicación == "Cereté"  ~ 23162,
+      Ciudad.de.ubicación == "Funza"  ~ 25286,
+      Ciudad.de.ubicación == "Tuluá"  ~ 76834,
+      Ciudad.de.ubicación == "Tulua"  ~ 76834,
+      Ciudad.de.ubicación == "Soledad"  ~ 8758,
+      Ciudad.de.ubicación == "El Dovio"  ~ 76250,
+      Ciudad.de.ubicación == "Santana"  ~ 15686,
+      Ciudad.de.ubicación == "Frontino"  ~ 5284,
+      Ciudad.de.ubicación == "Tocancipá"  ~ 25817,
+      Ciudad.de.ubicación == "Tocancipa"  ~ 25817,
+      Ciudad.de.ubicación == "Puerto Colombia"  ~ 8573,
+      Ciudad.de.ubicación == "Mosquera"  ~ 25473,
+      Ciudad.de.ubicación == "Sahagún"  ~ 23660,
+      Ciudad.de.ubicación == "Sahagun"  ~ 23660,
+      Ciudad.de.ubicación == "Polonuevo"  ~ 8558,
+      Ciudad.de.ubicación == "Villapinzón"  ~ 25873,
+      Ciudad.de.ubicación == "Villapinzon"  ~ 25873,
+      Ciudad.de.ubicación == "Montebello"  ~ 5467,
+      Ciudad.de.ubicación == "Santa Rosa"  ~ 5686,
+      Ciudad.de.ubicación == "Turbaco"  ~ 13836,
+      Ciudad.de.ubicación == "La Ceja"  ~ 5376,
+      Ciudad.de.ubicación == "San Francisco"  ~ 5652,
+      Ciudad.de.ubicación == "Lorica"  ~ 23417,
+      Ciudad.de.ubicación == "Oicatá"  ~ 15500,
+      Ciudad.de.ubicación == "Oicata"  ~ 15500,
+      Ciudad.de.ubicación == "Arjona"  ~ 13052,
+      Ciudad.de.ubicación == "Sopó"  ~ 25758,
+      Ciudad.de.ubicación == "La Estrella"  ~ 5380,
+      Ciudad.de.ubicación == "Tumaco"  ~ 52835,
+      Ciudad.de.ubicación == "Pasto"  ~ 52001,
+      Ciudad.de.ubicación == "Riohacha"  ~ 44001,
+      Ciudad.de.ubicación == "Zipaquirá"  ~ 25899,
+      Ciudad.de.ubicación == "Zipaquira"  ~ 25899,
+      Ciudad.de.ubicación == "Puerto Santander"  ~ 54553,
+      Ciudad.de.ubicación == "Toguí"  ~ 15816,
+      Ciudad.de.ubicación == "Togui"  ~ 15816,
+      Ciudad.de.ubicación == "Montenegro"  ~ 63470,
+      Ciudad.de.ubicación == "Floridablanca"  ~ 68276,
+      Ciudad.de.ubicación == "Cumbal"  ~ 52227,
+      Ciudad.de.ubicación == "Ulloa"  ~ 76845,
+      Ciudad.de.ubicación == "Santander de Quilichao"  ~ 19698,
+      Ciudad.de.ubicación == "Santander De Quilichao"  ~ 19698,
+      Ciudad.de.ubicación == "San Andrés"  ~ 880001,
+      Ciudad.de.ubicación == "Tocancipá"  ~ 63470,
+      Ciudad.de.ubicación == "Filandia"  ~ 63272,
+      Ciudad.de.ubicación == "Circasia"  ~ 63190,
+      Ciudad.de.ubicación == "Anserma"  ~ 17042,
+      Ciudad.de.ubicación == "Don Matías"  ~ 5237,
+      Ciudad.de.ubicación == "Don Matias"  ~ 5237,
+      Ciudad.de.ubicación == "Choachí"  ~ 25181,
+      Ciudad.de.ubicación == "Cocorná"  ~ 5197,
+      Ciudad.de.ubicación == "Cocorna"  ~ 5197,
+      Ciudad.de.ubicación == "Montería"  ~ 23001,
+      Ciudad.de.ubicación == "Toguí"  ~ 15816,
+      Ciudad.de.ubicación == "togüí"  ~ 15816,
+      Ciudad.de.ubicación == "toguí"  ~ 15816,
+      Ciudad.de.ubicación == "togui"  ~ 15816,
+      Ciudad.de.ubicación == "Guarne"  ~ 5318,
+      Ciudad.de.ubicación == "Guacarí"  ~ 76318,
+      Ciudad.de.ubicación == "Buenaventura"  ~ 76109,
+      Ciudad.de.ubicación == "Acacias"  ~ 50006,
+      Ciudad.de.ubicación == "Tenjo"  ~ 25799,
+      Ciudad.de.ubicación == "Caldas"  ~ 5129,
+      Ciudad.de.ubicación == "Barrancabermeja"  ~ 68081,
+      Ciudad.de.ubicación == "Floridablanca"  ~ 68276,
+      Ciudad.de.ubicación == "Subachoque"  ~ 25769,
+      Ciudad.de.ubicación == "San Juan de Rio Seco"  ~ 25662,
+      Ciudad.de.ubicación == "Puerto Tejada"  ~ 19573,
+      Ciudad.de.ubicación == "Ciénaga de Oro"  ~ 23189,
+      Ciudad.de.ubicación == "Santa Rosa de Cabal"  ~ 66682,
+      Ciudad.de.ubicación == "Tunja"  ~ 15001,
+      Ciudad.de.ubicación == "Ponedera"  ~ 8560,
+      Ciudad.de.ubicación == "Santo Tomas"  ~ 8685,
+      Ciudad.de.ubicación == "Galapa"  ~ 8296,
+      Ciudad.de.ubicación == "La Tebaida"  ~ 63401,
+      Ciudad.de.ubicación == "Jamundí"  ~ 76364,
+      Ciudad.de.ubicación == "Jamundi"  ~ 76364,
+      Ciudad.de.ubicación == "Apartado"  ~ 5045,
+      Ciudad.de.ubicación == "Tenza"  ~ 15798,
+      Ciudad.de.ubicación == "Ginebra"  ~ 76306,
+      Ciudad.de.ubicación == "Andalucía"  ~ 76036,
+      Ciudad.de.ubicación == "Sincelejo"  ~ 70001,
+      Ciudad.de.ubicación == "Angostura"  ~ 5038,
+      Ciudad.de.ubicación == "Villa Del Rosario"  ~ 54874,
+      Ciudad.de.ubicación == "Sahagun"  ~ 23660,
+      Ciudad.de.ubicación == "Oicata"  ~ 15500,
+      Ciudad.de.ubicación == "Miranda"  ~ 19455,
+      Ciudad.de.ubicación == "Candelaria"  ~ 76130,
+      Ciudad.de.ubicación == "Curití"  ~ 68229,
+      Ciudad.de.ubicación == "Curiti"  ~ 68229,
+      Ciudad.de.ubicación == "Concepción"  ~ 68207,
+      Ciudad.de.ubicación == "Concepcion"  ~ 68207,
+      Ciudad.de.ubicación == "Cimitarra"  ~ 68190,
+      Ciudad.de.ubicación == "Circasia"  ~ 63190,
+      Ciudad.de.ubicación == "Piedecuesta"  ~ 68547,
+      Ciudad.de.ubicación == "Ocaña"  ~ 54498,
+      Ciudad.de.ubicación == "Cumbitara"  ~ 52233,
+      Ciudad.de.ubicación == "Darien"  ~ 27150 ,
+      Ciudad.de.ubicación == "Monteria"  ~ 23001,
+      Ciudad.de.ubicación == "San Juan De Rio Seco"  ~ 25662,
+      Ciudad.de.ubicación == "Cienaga De Oro"  ~ 23189,
+      Ciudad.de.ubicación == "Santa Rosa De Cabal"  ~ 66682,
+      Ciudad.de.ubicación == "Chocontá"  ~ 25183,
+      Ciudad.de.ubicación == "Andalucia"  ~ 76036,
+      Ciudad.de.ubicación == "San Juan De Rio Seco"  ~ 25662,
+      Ciudad.de.ubicación == "Garagoa"  ~ 15299,
+      Ciudad.de.ubicación == "Facatativa"  ~ 25269,
+      Ciudad.de.ubicación == "Contadero"  ~ 52210,
+      Ciudad.de.ubicación == "Sopo"  ~ 25758,
+      Ciudad.de.ubicación == "Choachi"  ~ 25181,
+      Ciudad.de.ubicación == "Guacari"  ~ 76318,
+      Ciudad.de.ubicación == "Choconta"  ~ 25183,
+      Ciudad.de.ubicación == "Santa Sofia"  ~ 15696,
+      Ciudad.de.ubicación == "Espinal"  ~ 73268,
+      Ciudad.de.ubicación == "Nilo"  ~ 25488,
+      Ciudad.de.ubicación == "Socha"  ~ 15757,
+      Ciudad.de.ubicación == "San Diego"  ~ 20750,
+      Ciudad.de.ubicación == "Cienaga"  ~ 47189,
+      Ciudad.de.ubicación == "Bugalagrande"  ~ 76113,
+      Ciudad.de.ubicación == "Ubate"  ~ 25843,
+      Ciudad.de.ubicación == "Ciénaga"  ~ 47189,
+      Ciudad.de.ubicación == "Cienaga"  ~ 47189,
+      Ciudad.de.ubicación == "Cundinamarca"  ~ 11001,
+      Ciudad.de.ubicación == "El Cerrito"  ~ 76248,
+      Ciudad.de.ubicación == "Facatativá"  ~ 25269,
+      Ciudad.de.ubicación == "Facatativa"  ~ 25269,
+      Ciudad.de.ubicación == "Gigante"  ~ 41306,
+      Ciudad.de.ubicación == "Pitalito"  ~ 41551,
+      Ciudad.de.ubicación == "Quibdó"  ~ 27001,
+      Ciudad.de.ubicación == "Quibdo"  ~ 27001,
+      Ciudad.de.ubicación == "Sogamoso"  ~ 15759,
+      Ciudad.de.ubicación == "Suesca"  ~ 25772,
+      Ciudad.de.ubicación == "Ubaté"  ~ 	25843,
+      Ciudad.de.ubicación == "Ubate"  ~ 	25843,
+      Ciudad.de.ubicación == "Tierralta"  ~ 23807,
+      Ciudad.de.ubicación == "bogotá"  ~ 11001,
+      Ciudad.de.ubicación == "bogota"  ~ 11001,
+      Ciudad.de.ubicación == "buga"  ~ 76111,
+      Ciudad.de.ubicación == "guadalajara de buga"  ~ 76111,
+      Ciudad.de.ubicación == "medellín"  ~ 5001,
+      Ciudad.de.ubicación == "medellin"  ~ 5001,
+      Ciudad.de.ubicación == "itagüi"  ~ 5360,
+      Ciudad.de.ubicación == "itagüí"  ~ 5360,
+      Ciudad.de.ubicación == "itagui"  ~ 5360,
+      Ciudad.de.ubicación == "cartagena"  ~ 13001,
+      Ciudad.de.ubicación == "neiva"  ~ 41001,
+      Ciudad.de.ubicación == "palmira"  ~ 76520,
+      Ciudad.de.ubicación == "villavicencio"  ~ 50001,
+      Ciudad.de.ubicación == "rionegro"  ~ 68615,
+      Ciudad.de.ubicación == "cali"  ~ 76001,
+      Ciudad.de.ubicación == "dosquebradas"  ~ 66170,
+      Ciudad.de.ubicación == "cúcuta"  ~ 54001,
+      Ciudad.de.ubicación == "cucuta"  ~ 54001,
+      Ciudad.de.ubicación == "manizales"  ~ 17001,
+      Ciudad.de.ubicación == "subachoque"  ~ 	25769,
+      Ciudad.de.ubicación == "soacha"  ~ 25754,
+      Ciudad.de.ubicación == "barranquilla"  ~ 8001,
+      Ciudad.de.ubicación == "armenia"  ~ 63001,
+      Ciudad.de.ubicación == "pereira"  ~ 66001,
+      Ciudad.de.ubicación == "cajicá"  ~ 25126,
+      Ciudad.de.ubicación == "cajica"  ~ 25126,
+      Ciudad.de.ubicación == "ibagué"  ~ 73001,
+      Ciudad.de.ubicación == "ibague"  ~ 73001,
+      Ciudad.de.ubicación == "bucaramanga"  ~ 68001,
+      Ciudad.de.ubicación == "popayán"  ~ 19001,
+      Ciudad.de.ubicación == "popayan"  ~ 19001,
+      Ciudad.de.ubicación == "viterbo"  ~ 17877,
+      Ciudad.de.ubicación == "anapoima"  ~ 25035,
+      Ciudad.de.ubicación == "la Estrella"  ~ 5380,
+      Ciudad.de.ubicación == "envigado"  ~ 5266,
+      Ciudad.de.ubicación == "santa marta"  ~ 47001,
+      Ciudad.de.ubicación == "chía"  ~ 	25175,
+      Ciudad.de.ubicación == "chia"  ~ 	25175,
+      Ciudad.de.ubicación == "madrid"  ~ 25430,
+      Ciudad.de.ubicación == "villa del Rosario"  ~ 54874,
+      Ciudad.de.ubicación == "cartago"  ~ 76147,
+      Ciudad.de.ubicación == "guarne"  ~ 5318,
+      Ciudad.de.ubicación == "bello"  ~ 5088,
+      Ciudad.de.ubicación == "calarcá"  ~ 63130,
+      Ciudad.de.ubicación == "calarca"  ~ 63130,
+      Ciudad.de.ubicación == "valledupar"  ~ 20001,
+      Ciudad.de.ubicación == "la Dorada"  ~ 17380,
+      Ciudad.de.ubicación == "chinchiná"  ~ 17174,
+      Ciudad.de.ubicación == "chinchina"  ~ 17174,
+      Ciudad.de.ubicación == "san andrés"  ~ 68669,
+      Ciudad.de.ubicación == "san andres"  ~ 68669,
+      Ciudad.de.ubicación == "yumbo"  ~ 76892,
+      Ciudad.de.ubicación == "yopal"  ~ 85001,
+      Ciudad.de.ubicación == "guatapé"  ~ 5321,
+      Ciudad.de.ubicación == "guatape"  ~ 5321,
+      Ciudad.de.ubicación == "cota"  ~ 25214,
+      Ciudad.de.ubicación == "sabaneta"  ~ 5631,
+      Ciudad.de.ubicación == "villamaría"  ~ 17873,
+      Ciudad.de.ubicación == "villamaria"  ~ 17873,
+      Ciudad.de.ubicación == "trujillo"  ~ 76828,
+      Ciudad.de.ubicación == "pacho"  ~ 25513,
+      Ciudad.de.ubicación == "el retiro"  ~ 5607,
+      Ciudad.de.ubicación == "apartadó"  ~ 5045,
+      Ciudad.de.ubicación == "apartado"  ~ 5045,
+      Ciudad.de.ubicación == "ipiales"  ~ 52356,
+      Ciudad.de.ubicación == "mosquera"  ~ 25473,
+      Ciudad.de.ubicación == "la unión"  ~ 76400,
+      Ciudad.de.ubicación == "la union"  ~ 76400,
+      Ciudad.de.ubicación == "fusagasugá"  ~ 25290,
+      Ciudad.de.ubicación == "fusagasuga"  ~ 25290,
+      Ciudad.de.ubicación == "la calera"  ~ 25377,
+      Ciudad.de.ubicación == "villeta"  ~ 	25875,
+      Ciudad.de.ubicación == "palermo"  ~ 41524,
+      Ciudad.de.ubicación == "san pedro"  ~ 76670,
+      Ciudad.de.ubicación == "anapoima"  ~ 25035,
+      Ciudad.de.ubicación == "darién"  ~ 760530,
+      Ciudad.de.ubicación == "darién"  ~ 76126,
+      Ciudad.de.ubicación == "darién"  ~ 76126,
+      Ciudad.de.ubicación == "Agrado"  ~ 41013,
+      Ciudad.de.ubicación == "cereté"  ~ 23162,
+      Ciudad.de.ubicación == "funza"  ~ 25286,
+      Ciudad.de.ubicación == "tuluá"  ~ 76834,
+      Ciudad.de.ubicación == "tulua"  ~ 76834,
+      Ciudad.de.ubicación == "soledad"  ~ 8758,
+      Ciudad.de.ubicación == "el dovio"  ~ 76250,
+      Ciudad.de.ubicación == "santana"  ~ 15686,
+      Ciudad.de.ubicación == "frontino"  ~ 5284,
+      Ciudad.de.ubicación == "tocancipá"  ~ 25817,
+      Ciudad.de.ubicación == "tocancipa"  ~ 25817,
+      Ciudad.de.ubicación == "puerto colombia"  ~ 8573,
+      Ciudad.de.ubicación == "mosquera"  ~ 25473,
+      Ciudad.de.ubicación == "sahagún"  ~ 23660,
+      Ciudad.de.ubicación == "sahagun"  ~ 23660,
+      Ciudad.de.ubicación == "polonuevo"  ~ 8558,
+      Ciudad.de.ubicación == "villapinzón"  ~ 25873,
+      Ciudad.de.ubicación == "villapinzon"  ~ 25873,
+      Ciudad.de.ubicación == "montebello"  ~ 5467,
+      Ciudad.de.ubicación == "santa rosa de osos"  ~ 5686,
+      Ciudad.de.ubicación == "turbaco"  ~ 13836,
+      Ciudad.de.ubicación == "la ceja"  ~ 5376,
+      Ciudad.de.ubicación == "san francisco"  ~ 5652,
+      Ciudad.de.ubicación == "lorica"  ~ 23417,
+      Ciudad.de.ubicación == "oicatá"  ~ 15500,
+      Ciudad.de.ubicación == "oicata"  ~ 15500,
+      Ciudad.de.ubicación == "arjona"  ~ 13052,
+      Ciudad.de.ubicación == "sopó"  ~ 25758,
+      Ciudad.de.ubicación == "la estrella"  ~ 5380,
+      Ciudad.de.ubicación == "tumaco"  ~ 52835,
+      Ciudad.de.ubicación == "pasto"  ~ 52001,
+      Ciudad.de.ubicación == "riohacha"  ~ 44001,
+      Ciudad.de.ubicación == "zipaquirá"  ~ 25899,
+      Ciudad.de.ubicación == "zipaquira"  ~ 25899,
+      Ciudad.de.ubicación == "puerto santander"  ~ 54553,
+      Ciudad.de.ubicación == "toguí"  ~ 15816,
+      Ciudad.de.ubicación == "togui"  ~ 15816,
+      Ciudad.de.ubicación == "montenegro"  ~ 63470,
+      Ciudad.de.ubicación == "floridablanca"  ~ 68276,
+      Ciudad.de.ubicación == "cumbal"  ~ 52227,
+      Ciudad.de.ubicación == "ulloa"  ~ 76845,
+      Ciudad.de.ubicación == "santander de quilichao"  ~ 19698,
+      Ciudad.de.ubicación == "santander De quilichao"  ~ 19698,
+      Ciudad.de.ubicación == "san andrés"  ~ 880001,
+      Ciudad.de.ubicación == "tocancipá"  ~ 63470,
+      Ciudad.de.ubicación == "filandia"  ~ 63272,
+      Ciudad.de.ubicación == "circasia"  ~ 63190,
+      Ciudad.de.ubicación == "anserma"  ~ 17042,
+      Ciudad.de.ubicación == "don matías"  ~ 5237,
+      Ciudad.de.ubicación == "don matias"  ~ 5237,
+      Ciudad.de.ubicación == "choachí"  ~ 25181,
+      Ciudad.de.ubicación == "cocorná"  ~ 5197,
+      Ciudad.de.ubicación == "cocorna"  ~ 5197,
+      Ciudad.de.ubicación == "montería"  ~ 23001,
+      Ciudad.de.ubicación == "toguí"  ~ 15816,
+      Ciudad.de.ubicación == "guarne"  ~ 5318,
+      Ciudad.de.ubicación == "guacarí"  ~ 76318,
+      Ciudad.de.ubicación == "buenaventura"  ~ 76109,
+      Ciudad.de.ubicación == "acacias"  ~ 50006,
+      Ciudad.de.ubicación == "tenjo"  ~ 25799,
+      Ciudad.de.ubicación == "caldas"  ~ 5129,
+      Ciudad.de.ubicación == "barrancabermeja"  ~ 68081,
+      Ciudad.de.ubicación == "floridablanca"  ~ 68276,
+      Ciudad.de.ubicación == "subachoque"  ~ 25769,
+      Ciudad.de.ubicación == "san juan de rio seco"  ~ 25662,
+      Ciudad.de.ubicación == "puerto tejada"  ~ 19573,
+      Ciudad.de.ubicación == "ciénaga de oro"  ~ 23189,
+      Ciudad.de.ubicación == "santa rosa de cabal"  ~ 66682,
+      Ciudad.de.ubicación == "tunja"  ~ 15001,
+      Ciudad.de.ubicación == "ponedera"  ~ 8560,
+      Ciudad.de.ubicación == "santo tomas"  ~ 8685,
+      Ciudad.de.ubicación == "galapa"  ~ 8296,
+      Ciudad.de.ubicación == "la tebaida"  ~ 63401,
+      Ciudad.de.ubicación == "jamundí"  ~ 76364,
+      Ciudad.de.ubicación == "jamundi"  ~ 76364,
+      Ciudad.de.ubicación == "apartado"  ~ 5045,
+      Ciudad.de.ubicación == "tenza"  ~ 15798,
+      Ciudad.de.ubicación == "ginebra"  ~ 76306,
+      Ciudad.de.ubicación == "andalucía"  ~ 76036,
+      Ciudad.de.ubicación == "sincelejo"  ~ 70001,
+      Ciudad.de.ubicación == "angostura"  ~ 5038,
+      Ciudad.de.ubicación == "villa Del Rosario"  ~ 54874,
+      Ciudad.de.ubicación == "sahagun"  ~ 23660,
+      Ciudad.de.ubicación == "oicata"  ~ 15500,
+      Ciudad.de.ubicación == "miranda"  ~ 19455,
+      Ciudad.de.ubicación == "candelaria"  ~ 76130,
+      Ciudad.de.ubicación == "curití"  ~ 68229,
+      Ciudad.de.ubicación == "curiti"  ~ 68229,
+      Ciudad.de.ubicación == "concepción"  ~ 68207,
+      Ciudad.de.ubicación == "concepcion"  ~ 68207,
+      Ciudad.de.ubicación == "cimitarra"  ~ 68190,
+      Ciudad.de.ubicación == "circasia"  ~ 63190,
+      Ciudad.de.ubicación == "piedecuesta"  ~ 68547,
+      Ciudad.de.ubicación == "ocaña"  ~ 54498,
+      Ciudad.de.ubicación == "cumbitara"  ~ 52233,
+      Ciudad.de.ubicación == "darien"  ~ 27150 ,
+      Ciudad.de.ubicación == "monteria"  ~ 23001,
+      Ciudad.de.ubicación == "san juan de Rio seco"  ~ 25662,
+      Ciudad.de.ubicación == "cienaga de oro"  ~ 23189,
+      Ciudad.de.ubicación == "santa rosa de cabal"  ~ 66682,
+      Ciudad.de.ubicación == "chocontá"  ~ 25183,
+      Ciudad.de.ubicación == "andalucia"  ~ 76036,
+      Ciudad.de.ubicación == "san juan de rio seco"  ~ 25662,
+      Ciudad.de.ubicación == "garagoa"  ~ 15299,
+      Ciudad.de.ubicación == "facatativa"  ~ 25269,
+      Ciudad.de.ubicación == "contadero"  ~ 52210,
+      Ciudad.de.ubicación == "sopo"  ~ 25758,
+      Ciudad.de.ubicación == "choachi"  ~ 25181,
+      Ciudad.de.ubicación == "guacari"  ~ 76318,
+      Ciudad.de.ubicación == "choconta"  ~ 25183,
+      Ciudad.de.ubicación == "santa sofia"  ~ 15696,
+      Ciudad.de.ubicación == "espinal"  ~ 73268,
+      Ciudad.de.ubicación == "nilo"  ~ 25488,
+      Ciudad.de.ubicación == "socha"  ~ 15757,
+      Ciudad.de.ubicación == "san diego"  ~ 20750,
+      Ciudad.de.ubicación == "cienaga"  ~ 47189,
+      Ciudad.de.ubicación == "bugalagrande"  ~ 76113,
+      Ciudad.de.ubicación == "ubate"  ~ 25843,
+      Ciudad.de.ubicación == "ciénaga"  ~ 47189,
+      Ciudad.de.ubicación == "cienaga"  ~ 47189,
+      Ciudad.de.ubicación == "cundinamarca"  ~ 11001,
+      Ciudad.de.ubicación == "el cerrito"  ~ 76248,
+      Ciudad.de.ubicación == "facatativá"  ~ 25269,
+      Ciudad.de.ubicación == "facatativa"  ~ 25269,
+      Ciudad.de.ubicación == "gigante"  ~ 41306,
+      Ciudad.de.ubicación == "pitalito"  ~ 41551,
+      Ciudad.de.ubicación == "quibdó"  ~ 27001,
+      Ciudad.de.ubicación == "quibdo"  ~ 27001,
+      Ciudad.de.ubicación == "sogamoso"  ~ 15759,
+      Ciudad.de.ubicación == "suesca"  ~ 25772,
+      Ciudad.de.ubicación == "ubaté"  ~ 	25843,
+      Ciudad.de.ubicación == "ubate"  ~ 	25843,
+      Ciudad.de.ubicación == "tierralta"  ~ 23807,
+      Ciudad.de.ubicación == "agrado"  ~ 41013,
+      Ciudad.de.ubicación == "baranoa"  ~ 8078,
+      Ciudad.de.ubicación == "cerete"  ~ 23162,
+      Ciudad.de.ubicación == "chïa"  ~ 25175,
+      Ciudad.de.ubicación == "el reten"  ~ 47268,
+      Ciudad.de.ubicación == "florida"  ~ 76275,
+      Ciudad.de.ubicación == "la dorada"  ~ 17380,
+      Ciudad.de.ubicación == "santa marta"  ~ 47001,
+      Ciudad.de.ubicación == "santuario"  ~ 66687,
+      Ciudad.de.ubicación == "villa del rosario"  ~ 54874,
+      Ciudad.de.ubicación == "yotoco"  ~ 76890,
+      Ciudad.de.ubicación == "zona bananera"  ~ 47980,
+      Ciudad.de.ubicación == "malambo"  ~ 8433,
+      Ciudad.de.ubicación == "fundacion"  ~ 47288,
+      Ciudad.de.ubicación == "melgar"  ~ 73449,
+      Ciudad.de.ubicación == "san cristobal"  ~ 13620,
+      Ciudad.de.ubicación == "santafe de antioquia"  ~ 5042,
+      Ciudad.de.ubicación == "san martin"  ~ 20770,
+      Ciudad.de.ubicación == "timbio"  ~ 19807,
+      Ciudad.de.ubicación == "marsella"  ~ 66440,
+      Ciudad.de.ubicación == "la virginia"  ~ 66400,
+      Ciudad.de.ubicación == "pereira"  ~ 66001,
+      Ciudad.de.ubicación == "dos quebradas"  ~ 66170,
+      Ciudad.de.ubicación == "copacabana"  ~ 5212,
+      Ciudad.de.ubicación == "granada"  ~ 5313,
+      Ciudad.de.ubicación == "sonson"  ~ 5756,
+      Ciudad.de.ubicación == "tuquerres"  ~ 52838,
+      Ciudad.de.ubicación == "silvania"  ~ 25743,
+      Ciudad.de.ubicación == "restrepo"  ~ 50606,
+      Ciudad.de.ubicación == "el banco"  ~ 47245,
+      Ciudad.de.ubicación == "leticia"  ~ 91001,
+      Ciudad.de.ubicación == "yarumal"  ~ 5887,
+      Ciudad.de.ubicación == "funsa"  ~ 25286,
+      Ciudad.de.ubicación == "cogua"  ~ 25200,
+      Ciudad.de.ubicación == "san pedro de uraba"  ~ 5665,
+      Ciudad.de.ubicación == "barranco de loba"  ~ 13074,
+      Ciudad.de.ubicación == "amaga"  ~ 5030,
+      Ciudad.de.ubicación == "sibate"  ~ 25740,
+      Ciudad.de.ubicación == "florencia"  ~ 18001,
+      Ciudad.de.ubicación == "paicol"  ~ 41518,
+      Ciudad.de.ubicación == "acevedo"  ~ 41006,
+      Ciudad.de.ubicación == "timana"  ~ 41807,
+      Ciudad.de.ubicación == "san jose de isnos"  ~ 41359,
+      Ciudad.de.ubicación == "isnos (san jose de isnos)"  ~ 41359,
+      Ciudad.de.ubicación == "san agustin"  ~ 41668,
+      Ciudad.de.ubicación == "san agustín"  ~ 41668,
+      Ciudad.de.ubicación == "garzon"  ~ 41298,
+      Ciudad.de.ubicación == "sonsón"  ~ 5756,
+      Ciudad.de.ubicación == "sonson"  ~ 5756,
+      Ciudad.de.ubicación == "vijes"  ~ 76869,
+      Ciudad.de.ubicación == "sibaté"  ~ 25740,
+      Ciudad.de.ubicación == "timaná"  ~ 41807,
+      Ciudad.de.ubicación == "garzón"  ~ 41298,
+      Ciudad.de.ubicación == "garzon"  ~ 41298,
+      Ciudad.de.ubicación == "donmatías"  ~ 5237,
+      Ciudad.de.ubicación == "togüí"  ~ 15816,
+      Ciudad.de.ubicación == "toguí"  ~ 15816,
+      Ciudad.de.ubicación == "san andrés de tumaco"  ~ 52835,
+      Ciudad.de.ubicación == "san andres de tumaco"  ~ 52835,
+      Ciudad.de.ubicación == "san pedro de urabá"  ~ 5665,
+      Ciudad.de.ubicación == "san pedro de uraba"  ~ 5665,
+      Ciudad.de.ubicación == "san cristóbal"  ~ 13620,
+      Ciudad.de.ubicación == "san cristobal"  ~ 13620,
+      Ciudad.de.ubicación == "santa fé de antioquia"  ~ 5042,
+      Ciudad.de.ubicación == "santa fe de antioquia"  ~ 5042,
+      Ciudad.de.ubicación == "san martín"  ~ 20770,
+      Ciudad.de.ubicación == "timbío"  ~ 19807,
+      Ciudad.de.ubicación == "túquerres"  ~ 52838,
+      Ciudad.de.ubicación == "amagá"  ~ 5030,
+      Ciudad.de.ubicación == "acacías"  ~ 50006,
+      Ciudad.de.ubicación == "san juan de rioseco"  ~ 25662,
+      Ciudad.de.ubicación == "santo tomás"  ~ 8685,
+      Ciudad.de.ubicación == "santa sofía"  ~ 15696,
+      Ciudad.de.ubicación == "fundación"  ~ 47288,
+      Ciudad.de.ubicación == "retiro"  ~ 5607,
+      Ciudad.de.ubicación == "villa de san diego de ubaté"  ~ 25843,
+      Ciudad.de.ubicación == "el santuario"  ~ 5697,
+      Ciudad.de.ubicación == "aquitania"  ~ 15047,
+      Ciudad.de.ubicación == "aipe"  ~ 41016,
+      Ciudad.de.ubicación == "el colegio"  ~ 25245,
+      Ciudad.de.ubicación == "calima"  ~ 76126,
+      Ciudad.de.ubicación == "isnos"  ~ 41359,
+      Ciudad.de.ubicación == "calamar"  ~ 13140,
+      Ciudad.de.ubicación == "unión panamericana"  ~ 27810,
+      Ciudad.de.ubicación == "union panamericana"  ~ 27810,
+      Ciudad.de.ubicación == "chocó"  ~ 27,
+      Ciudad.de.ubicación == "sabanagrande"  ~ 8634,
+      Ciudad.de.ubicación == "guaduas"  ~ 25320,
+      Ciudad.de.ubicación == "barbosa"  ~ 5079,
+      Ciudad.de.ubicación == "santa rosa"  ~ 13683,
+      Ciudad.de.ubicación == "bosconia"  ~ 20060,
+      Ciudad.de.ubicación == "cuaspúd"  ~ 52224,
+      Ciudad.de.ubicación == "andes"  ~ 5034,
+      Ciudad.de.ubicación == "cun"  ~ 25,
+      Ciudad.de.ubicación == "santa rosa de lima"  ~ 13683,
+      Ciudad.de.ubicación == "la paz"  ~ 20621,
+      Ciudad.de.ubicación == "río de oro"  ~ 20614,
+      Ciudad.de.ubicación == "rio de oro"  ~ 20614,
+      Ciudad.de.ubicación == "puebloviejo"  ~ 47570,
+      Ciudad.de.ubicación == "agustín codazzi"  ~ 20013,
+      Ciudad.de.ubicación == "agustin codazzi"  ~ 20013,
+      Ciudad.de.ubicación == "aguachica"  ~ 20011,
+      Ciudad.de.ubicación == "guachené"  ~ 19300,
+      Ciudad.de.ubicación == "risaralda"  ~ 17616,
+      Ciudad.de.ubicación == "villa rica"  ~ 19845,
+      Ciudad.de.ubicación == "el tambo"  ~ 19256,
+      Ciudad.de.ubicación == "quimbaya"  ~ 63594,
+      Ciudad.de.ubicación == "manatí"  ~ 8436,
+      Ciudad.de.ubicación == "toledo"  ~ 54820,
+      Ciudad.de.ubicación == "belén"  ~ 52083,
+      Ciudad.de.ubicación == "codazzi"  ~ 20013,
+      Ciudad.de.ubicación == "potosí"  ~ 52560,
+      Ciudad.de.ubicación == "amazonas"  ~ 91,
+      Ciudad.de.ubicación == "san juan de arama"  ~ 50683,
+      Ciudad.de.ubicación == "la plata"  ~ 41396,
+      Ciudad.de.ubicación == "caloto"  ~ 19142,
+      Ciudad.de.ubicación == "dagua"  ~ 76233,
+      Ciudad.de.ubicación == "albania"  ~ 44035,
+      Ciudad.de.ubicación == "maicao"  ~ 44430,
+      Ciudad.de.ubicación == "san juan del cesar"  ~ 44650,
+      Ciudad.de.ubicación == "paz de ariporo"  ~ 85250,
+      Ciudad.de.ubicación == "guamo"  ~ 73319,
+      Ciudad.de.ubicación == "caloto"  ~ 19142,
+      Ciudad.de.ubicación == "algeciras"  ~ 41020,
+      Ciudad.de.ubicación == "chiquinquirá"  ~ 15176,
+      Ciudad.de.ubicación == "sabanalarga"  ~ 8638,
+      Ciudad.de.ubicación == "samaná"  ~ 17662,
+      Ciudad.de.ubicación == "medina"  ~ 25438,
+      Ciudad.de.ubicación == "cubará"  ~ 15223,
+      Ciudad.de.ubicación == "canalete"  ~ 23090,
+      Ciudad.de.ubicación == "villa de leyva"  ~ 	15407,
+      Ciudad.de.ubicación == "duitama"  ~ 15238,
+      Ciudad.de.ubicación == "samacá"  ~ 15646,
+      Ciudad.de.ubicación == "cubará"  ~ 15223,
+      Ciudad.de.ubicación == "la florida"  ~ 52381,
+      Ciudad.de.ubicación == "guachucal"  ~ 52317,
+      Ciudad.de.ubicación == "ancuyá"  ~ 52036,
+      Ciudad.de.ubicación == "roldanillo"  ~ 76622,
+      Ciudad.de.ubicación == "alcalá"  ~ 76020,
+      Ciudad.de.ubicación == "ábrego"  ~ 54003,
+      Ciudad.de.ubicación == "tibú"  ~ 54810,
+      Ciudad.de.ubicación == "marmato"  ~ 17442,
+      Ciudad.de.ubicación == "marquetalia"  ~ 17444,
+      Ciudad.de.ubicación == "la jagua de ibirico"  ~ 20400,
+      Ciudad.de.ubicación == "el bagre"  ~5250,
+      Ciudad.de.ubicación == "chiriguaná"  ~ 20178,
+      Ciudad.de.ubicación == "palmar de varela"  ~ 8520,
+      Ciudad.de.ubicación == "distracción"  ~ 44098,
+      Ciudad.de.ubicación == "chipaque"  ~ 25178,
+      Ciudad.de.ubicación == "turbaná"  ~ 13838,
+      Ciudad.de.ubicación == "turmequé"  ~ 15835,
+      Ciudad.de.ubicación == "piendamó"  ~ 19548,
+      Ciudad.de.ubicación == "norcasia"  ~ 17495,
+      Ciudad.de.ubicación == "el carmen de viboral"  ~ 5148,
+      Ciudad.de.ubicación == "linares"  ~ 52411,
+      Ciudad.de.ubicación == "maría la baja"  ~ 13442,
+      Ciudad.de.ubicación == "paipa"  ~ 15516,
+      Ciudad.de.ubicación == "une"  ~ 25845,
+      Ciudad.de.ubicación == "fómeque"  ~ 25279,
+      Ciudad.de.ubicación == "magangué"  ~ 13430,
+      Ciudad.de.ubicación == "dibulla"  ~ 44090,
+      Ciudad.de.ubicación == "los palmitos"  ~ 70418,
+      Ciudad.de.ubicación == "santa lucía"  ~ 8675,
+      Ciudad.de.ubicación == "villanueva"  ~ 68872,
+      Ciudad.de.ubicación == "santa lucía"  ~ 8675,
+      Ciudad.de.ubicación == "montelíbano"  ~ 23466,
+      Ciudad.de.ubicación == "riosucio"  ~ 17614,
+      Ciudad.de.ubicación == "los patios"  ~ 54405,
+      Ciudad.de.ubicación == "gachancipá"  ~ 25295,
+      Ciudad.de.ubicación == "puerto leguízamo"  ~ 86573 ,
+      Ciudad.de.ubicación == "fonseca"  ~ 44279,
+      Ciudad.de.ubicación == "magüí"  ~ 52427,
+      Ciudad.de.ubicación == "moniquirá"  ~ 15469,
+      Ciudad.de.ubicación == "oporapa"  ~ 41503,
+      Ciudad.de.ubicación == "puerto nariño"  ~ 91540 ,
+      Ciudad.de.ubicación == "rovira"  ~ 73624,
+      Ciudad.de.ubicación == "pamplona"  ~ 54518,
+      Ciudad.de.ubicación == "santa rosa de viterbo"  ~ 15693,
+      Ciudad.de.ubicación == "sesquilé"  ~ 25736,
+      Ciudad.de.ubicación == "córdoba"  ~ 63212,
+      Ciudad.de.ubicación == "muzo"  ~ 15480,
+      Ciudad.de.ubicación == "cisneros"  ~ 5190,
+      Ciudad.de.ubicación == "cácota"  ~ 54125,
+      Ciudad.de.ubicación == "tinjacá"  ~ 15808,
+      Ciudad.de.ubicación == "sitionuevo"  ~ 47745,
+      Ciudad.de.ubicación == "puerto guzmán"  ~ 86571,
+      Ciudad.de.ubicación == "providencia"  ~ 88564,
+      Ciudad.de.ubicación == "planadas"  ~ 73555,
+      Ciudad.de.ubicación == "pradera"  ~ 76563,
+      Ciudad.de.ubicación == "arauca"  ~ 81001,
+      Ciudad.de.ubicación == "aguadas"  ~ 17013,
+      Ciudad.de.ubicación == "chimá"  ~ 23168,
+      Ciudad.de.ubicación == "ituango"  ~ 5361,
+      Ciudad.de.ubicación == "el zulia"  ~ 54261,
+      Ciudad.de.ubicación == "puerto lópez"  ~ 50573,
+      Ciudad.de.ubicación == "mitú"  ~ 97001,
+      Ciudad.de.ubicación == "el retén"  ~ 47268,
+      Ciudad.de.ubicación == "miraflores"  ~ 15455,
+      Ciudad.de.ubicación == "viracachá"  ~ 15879,
+      Ciudad.de.ubicación == "cucaita"  ~ 15224,
+      Ciudad.de.ubicación == "san vicente del caguán"  ~ 18753,
+      Ciudad.de.ubicación == "repelón"  ~ 8606,
+      Ciudad.de.ubicación == "colombia"  ~ 41206,
+      Ciudad.de.ubicación == "puerto gaitán"  ~ 50568,
+      Ciudad.de.ubicación == "santa catalina"  ~ 13673,
+      Ciudad.de.ubicación == "girardot"  ~ 25307,
+      Ciudad.de.ubicación == "totoró"  ~ 19824,
+      Ciudad.de.ubicación == "puerto asís"  ~ 86568,
+      Ciudad.de.ubicación == "turbo"  ~ 5837,
+      Ciudad.de.ubicación == "saladoblanco"  ~ 41660,
+      Ciudad.de.ubicación == "aracataca"  ~ 47053,
+      Ciudad.de.ubicación == "san luis"  ~ 73678,
+      Ciudad.de.ubicación == "caucasia"  ~ 5154,
+      Ciudad.de.ubicación == "tabio"  ~ 25785,
+      Ciudad.de.ubicación == "sutamarchán"  ~ 15776,
+      Ciudad.de.ubicación == "manzanares"  ~ 17433,
+      Ciudad.de.ubicación == "tipacoque"  ~ 15810,
+      Ciudad.de.ubicación == "cómbita"  ~ 15204,
+      Ciudad.de.ubicación == "campoalegre"  ~ 41132,
+      Ciudad.de.ubicación == "san carlos de guaroa"  ~ 50680,
+      Ciudad.de.ubicación == "buenos aires"  ~ 19110,
+      Ciudad.de.ubicación == "campoalegre"  ~ 41132,
+      Ciudad.de.ubicación == "el rosal"  ~ 25260,
+      Ciudad.de.ubicación == "juan de acosta"  ~ 8132,
+      Ciudad.de.ubicación == "la tola"  ~ 52390,
+      Ciudad.de.ubicación == "la cruz"  ~ 52378,
+      Ciudad.de.ubicación == "flandes"  ~ 73275,
+      Ciudad.de.ubicación == "socorro"  ~ 68755,
+      Ciudad.de.ubicación == "venecia"  ~ 25506,
+      Ciudad.de.ubicación == "ventaquemada"  ~ 15861,
+      Ciudad.de.ubicación == "líbano"  ~ 73411,
+      Ciudad.de.ubicación == "gonzález"  ~ 20310,
+      Ciudad.de.ubicación == "paya"  ~ 15532,
+      Ciudad.de.ubicación == "luruaco"  ~ 8421,
+      Ciudad.de.ubicación == "san miguel"  ~ 68684,
+      Ciudad.de.ubicación == "morroa"  ~ 70473,
+      Ciudad.de.ubicación == "piedras"  ~ 73547,
+      Ciudad.de.ubicación == "bolívar"  ~ 68101,
+      Ciudad.de.ubicación == "clemencia"  ~ 13222,
+      Ciudad.de.ubicación == "marinilla"  ~ 5440,
+      Ciudad.de.ubicación == "chinú"  ~ 23182,
+      Ciudad.de.ubicación == "usiacurí"  ~ 8849,
+      Ciudad.de.ubicación == "san miguel de sema"  ~ 15676,
+      Ciudad.de.ubicación == "usiacurí"  ~ 8849,
+      Ciudad.de.ubicación == "mahates"  ~ 13433,
+      Ciudad.de.ubicación == "aldana"  ~ 52022,
+      Ciudad.de.ubicación == "mallama"  ~ 52435,
+      Ciudad.de.ubicación == "honda"  ~ 73349,
+      Ciudad.de.ubicación == "campo de la cruz"  ~ 8137,	
+      Ciudad.de.ubicación == "timbiquí"  ~ 19809,
+      Ciudad.de.ubicación == "tubará"  ~ 8832,
+      Ciudad.de.ubicación == "guateque"  ~ 5321,
+      Ciudad.de.ubicación == "cerrito"  ~ 68162,
+      Ciudad.de.ubicación == "becerril"  ~ 20045,
+      Ciudad.de.ubicación == "cabuyaro"  ~ 50124,
+      Ciudad.de.ubicación == "coper"  ~ 15212,
+      Ciudad.de.ubicación == "cáqueza"  ~ 25151,
+      Ciudad.de.ubicación == "junín"  ~ 25372,
+      Ciudad.de.ubicación == "la mesa"  ~ 25386,
+      Ciudad.de.ubicación == "san antonio del tequendama"  ~ 25645,
+      Ciudad.de.ubicación == "pivijay"  ~ 47551,
+      Ciudad.de.ubicación == "tauramena"  ~ 85410,
+      Ciudad.de.ubicación == "valle del guamuez"  ~ 86865,
+      Ciudad.de.ubicación == "mocoa"  ~ 86001,
+      Ciudad.de.ubicación == "orito"  ~ 86320	,
+      Ciudad.de.ubicación == "olaya herrera"  ~ 52490,
+      Ciudad.de.ubicación == "san pablo"  ~ 52693,
+      Ciudad.de.ubicación == "el piñón"  ~ 47258,
+      Ciudad.de.ubicación == "el copey"  ~ 20238,
+      Ciudad.de.ubicación == "carepa"  ~ 5147,
+      Ciudad.de.ubicación == "santa rosa del sur"  ~ 13688,
+      Ciudad.de.ubicación == "pauna"  ~ 15531,
+      Ciudad.de.ubicación == "zipacón"  ~ 25888,
+      Ciudad.de.ubicación == "la playa"  ~ 54398,
+      Ciudad.de.ubicación == "argelia"  ~ 76054,
+      Ciudad.de.ubicación == "vianí"  ~ 25867,
+      Ciudad.de.ubicación == "piojó"  ~ 8549,
+      Ciudad.de.ubicación == "san onofre"  ~ 70713,
+      Ciudad.de.ubicación == "corozal"  ~ 70215,
+      Ciudad.de.ubicación == "francisco pizarro"  ~ 52520,
+      Ciudad.de.ubicación == "nuevo colón"  ~ 15494,
+      Ciudad.de.ubicación == "tasco"  ~ 15790,
+      Ciudad.de.ubicación == "pasca"  ~ 25535,
+      Ciudad.de.ubicación == "manta"  ~ 25436,
+      Ciudad.de.ubicación == "boyacá"  ~ 15104,
+      Ciudad.de.ubicación == "anolaima"  ~ 25040,
+      Ciudad.de.ubicación == "jericó"  ~ 5368,
+      Ciudad.de.ubicación == "tasco"  ~ 15790,
+      Ciudad.de.ubicación == "puerto salgar"  ~ 25572,
+      Ciudad.de.ubicación == "ubaque"  ~ 25841,
+      Ciudad.de.ubicación == "san sebastián de mariquita"  ~ 73443,
+      Ciudad.de.ubicación == "belén de umbría"  ~ 66088,
+      Ciudad.de.ubicación == "el carmen de bolívar"  ~ 13244,
+      Ciudad.de.ubicación == "san juan nepomuceno"  ~ 13657,
+      Ciudad.de.ubicación == "mompós"  ~ 13468,
+      Ciudad.de.ubicación == "el peñón"  ~ 25258,
+      Ciudad.de.ubicación == "yolombó"  ~ 5890,
+      Ciudad.de.ubicación == "girón"  ~ 68306,
+      Ciudad.de.ubicación == "inírida"  ~ 94001,
+      Ciudad.de.ubicación == "medio baudó"  ~ 27430,
+      Ciudad.de.ubicación == "bojayá"  ~ 27099,
+      Ciudad.de.ubicación == "istmina"  ~ 27361,
+      Ciudad.de.ubicación == "tadó"  ~ 27787,
+      Ciudad.de.ubicación == "condoto"  ~ 27205,
+      Ciudad.de.ubicación == "cértegui"  ~ 27160,
+      Ciudad.de.ubicación == "san juan nepomuceno"  ~ 13657,
+      Ciudad.de.ubicación == "puerto carreño"  ~ 99001,
+      Ciudad.de.ubicación == "buenavista"  ~ 15109,
+      Ciudad.de.ubicación == "barbacoas"  ~ 52079,
+      Ciudad.de.ubicación == "giraldo"  ~ 5306,
+      Ciudad.de.ubicación == "tena"  ~ 25797,
+      Ciudad.de.ubicación == "agua de dios"  ~ 25001,
+      Ciudad.de.ubicación == "pueblo bello"  ~ 20570,
+      Ciudad.de.ubicación == "bahía solano"  ~ 20570,
+      Ciudad.de.ubicación == "hatonuevo"  ~ 44378,
+      Ciudad.de.ubicación == "chimichagua"  ~ 20175,
+      Ciudad.de.ubicación == "silvia"  ~ 19743,
+      Ciudad.de.ubicación == "río quito"  ~ 27600,
+      Ciudad.de.ubicación == "yacopí"  ~ 25885,
+      Ciudad.de.ubicación == "lenguazaque"  ~ 25407,
+      Ciudad.de.ubicación == "yacuanquer"  ~ 52885,
+      Ciudad.de.ubicación == "obando"  ~ 76497,
+      Ciudad.de.ubicación == "sevilla"  ~ 76736,
+      Ciudad.de.ubicación == "cañasgordas"  ~ 5138,
+      Ciudad.de.ubicación == "san sebastián de buenavista"  ~ 47692,
+      Ciudad.de.ubicación == "lópez de micay"  ~ 19418,
+      Ciudad.de.ubicación == "gramalote"  ~ 54313,
+      Ciudad.de.ubicación == "san juan de urabá"  ~ 5659,
+      Ciudad.de.ubicación == "arboletes"  ~ 5051,
+      Ciudad.de.ubicación == "guaitarilla"  ~ 52320,
+      Ciudad.de.ubicación == "san bernardo"  ~ 52685,
+      Ciudad.de.ubicación == "nariño"  ~ 52480,
+      Ciudad.de.ubicación == "pupiales"  ~ 52585,
+      Ciudad.de.ubicación == "unguía"  ~ 27800,
+      Ciudad.de.ubicación == "cerro de san antonio"  ~ 47161,
+      Ciudad.de.ubicación == "san bernardo"  ~ 52685,
+      Ciudad.de.ubicación == "puerto escondido"  ~ 23574,
+      Ciudad.de.ubicación == "guapotá"  ~ 68322,
+      Ciudad.de.ubicación == "el charco"  ~ 52250,
+      Ciudad.de.ubicación == "planeta rica"  ~ 23555,
+      Ciudad.de.ubicación == "purísima de la concepción"  ~ 23586,
+      Ciudad.de.ubicación == "valdivia"  ~ 5854,
+      Ciudad.de.ubicación == "barrancas"  ~ 44078,
+      Ciudad.de.ubicación == "patía"  ~ 19532,
+      Ciudad.de.ubicación == "cabrera"  ~ 25120,
+      Ciudad.de.ubicación == "la llanada"  ~ 52385,
+      Ciudad.de.ubicación == "san roque"  ~ 5670,
+      Ciudad.de.ubicación == "chigorodó"  ~ 5172,
+      Ciudad.de.ubicación == "machetá"  ~ 25426,
+      Ciudad.de.ubicación == "cumaral"  ~ 50226,
+      Ciudad.de.ubicación == "puerres"  ~ 52573,
+      Ciudad.de.ubicación == "ricaurte"  ~ 52612,
+      Ciudad.de.ubicación == "el cairo"  ~ 76246,
+      Ciudad.de.ubicación == "convención"  ~ 54206,
+      Ciudad.de.ubicación == "abriaquí"  ~ 5004,
+      Ciudad.de.ubicación == "firavitoba"  ~ 15272,
+      Ciudad.de.ubicación == "colón"  ~ 86219,
+      Ciudad.de.ubicación == "támesis"  ~ 5789,
+      Ciudad.de.ubicación == "san juan de betulia"  ~ 70702,
+      Ciudad.de.ubicación == "san marcos"  ~ 70708,
+      Ciudad.de.ubicación == "caimito"  ~ 86219,
+      Ciudad.de.ubicación == "apulo"  ~ 25599,
+      Ciudad.de.ubicación == "tame"  ~ 81794,
+      Ciudad.de.ubicación == "neira"  ~ 17486,
+      Ciudad.de.ubicación == "los córdobas"  ~ 23419,
+      Ciudad.de.ubicación == "albán"  ~ 25019,
+      Ciudad.de.ubicación == "tocaima"  ~ 25815,
+      Ciudad.de.ubicación == "arboleda"  ~ 52051,
+      Ciudad.de.ubicación == "uribia"  ~ 44847,
+      Ciudad.de.ubicación == "suan"  ~ 8770,
+      Ciudad.de.ubicación == "manaure"  ~ 44560,
+      Ciudad.de.ubicación == "san lorenzo"  ~ 52687,
+      Ciudad.de.ubicación == "ayapel"  ~ 23068,
+      Ciudad.de.ubicación == "corrales"  ~ 15215,
+      Ciudad.de.ubicación == "viotá"  ~ 25878,
+      Ciudad.de.ubicación == "atrato"  ~ 27050,
+      Ciudad.de.ubicación == "yaguará"  ~ 41885,
+      Ciudad.de.ubicación == "ansermanuevo"  ~ 76041,
+      Ciudad.de.ubicación == "san luis de sincé"  ~ 70742,
+      Ciudad.de.ubicación == "rioquito"  ~ 27600,
+      Ciudad.de.ubicación == "toca"  ~ 15814,
+      Ciudad.de.ubicación == "cartagena del chairá"  ~ 18150,
+      Ciudad.de.ubicación == "el paso"  ~ 20250,
+      Ciudad.de.ubicación == "santa ana"  ~ 47707,
+      Ciudad.de.ubicación == "santiago de tolú"  ~ 70820,
+      Ciudad.de.ubicación == "nechí"  ~ 5495,
+      Ciudad.de.ubicación == "lebrija"  ~ 68406,
+      Ciudad.de.ubicación == "tuchín"  ~ 23815,
+      Ciudad.de.ubicación == "guatavita"  ~ 25326,
+      Ciudad.de.ubicación == "chachagüí"  ~ 52240,
+      Ciudad.de.ubicación == "sandoná"  ~ 52683,
+      Ciudad.de.ubicación == "fresno"  ~ 73283,
+      Ciudad.de.ubicación == "alto baudó"  ~ 27025,
+      Ciudad.de.ubicación == "cotorra"  ~ 23300,
+      Ciudad.de.ubicación == "san josé del guaviare"  ~ 95001,
+      Ciudad.de.ubicación == "bagadó"  ~ 27073,
+      Ciudad.de.ubicación == "tello"  ~ 41799,
+      Ciudad.de.ubicación == "la belleza"  ~ 68377,
+      Ciudad.de.ubicación == "tarazá"  ~ 5790,
+      Ciudad.de.ubicación == "sasaima"  ~ 25718,
+      Ciudad.de.ubicación == "labateca"  ~ 54377,
+      Ciudad.de.ubicación == "mutiscua"  ~ 54480,
+      Ciudad.de.ubicación == "villa caro"  ~ 54871,
+      Ciudad.de.ubicación == "tarso"  ~ 5792,
+      Ciudad.de.ubicación == "la cumbre	"  ~ 76677,
+      Ciudad.de.ubicación == "charalá"  ~ 68167,
+      Ciudad.de.ubicación == "salgar"  ~ 5642,
+      Ciudad.de.ubicación == "valencia"  ~ 23855,
+      Ciudad.de.ubicación == "taminango"  ~ 52786,
+      Ciudad.de.ubicación == "san pedro de cartago"  ~ 52694,
+      Ciudad.de.ubicación == "sampués"  ~ 70670,
+      Ciudad.de.ubicación == "santa bárbara"  ~ 52695,
+      Ciudad.de.ubicación == "la cumbre"  ~ 76677,
+      Ciudad.de.ubicación == "imués"  ~ 52354,
+      Ciudad.de.ubicación == "curumaní"  ~ 52695,
+      Ciudad.de.ubicación == "palmito"  ~ 70523,
+      Ciudad.de.ubicación == "el peñol"  ~ 52254,
+      Ciudad.de.ubicación == "pueblo nuevo"  ~ 23570,
+      Ciudad.de.ubicación == "el cantón de san pablo"  ~ 27135,
+      Ciudad.de.ubicación == "guapí"  ~ 19318,
+      Ciudad.de.ubicación == "cachipay"  ~ 25123,
+      Ciudad.de.ubicación == "rivera"  ~ 41615,
+      Ciudad.de.ubicación == "nátaga"  ~ 41483,
+      Ciudad.de.ubicación == "palestina"  ~ 41530,
+      Ciudad.de.ubicación == "san vicente de chucurí"  ~ 68689,
+      Ciudad.de.ubicación == "murillo"  ~ 73461,
+      Ciudad.de.ubicación == "ariguaní"  ~ 47058,
+      Ciudad.de.ubicación == "el cantón san pablo"  ~ 27135,
+      Ciudad.de.ubicación == "santiago"  ~ 86760,
+      Ciudad.de.ubicación == "guaranda"  ~ 70265,
+      Ciudad.de.ubicación == "manaure balcón del cesar"  ~ 20443,
+       Ciudad.de.ubicación == "purificación"  ~ 73585,
+      Ciudad.de.ubicación == "girardota"  ~ 5308,
+      Ciudad.de.ubicación == "suaita"  ~ 68770,
+      Ciudad.de.ubicación == "río viejo"  ~ 13600,
+      Ciudad.de.ubicación == "málaga"  ~ 68432,
+      Ciudad.de.ubicación == "caicedo"  ~ 5125,
+      Ciudad.de.ubicación == "yavaraté"  ~ 97889,
+      Ciudad.de.ubicación == "villarrica"  ~ 73873,
+      Ciudad.de.ubicación == "majagual"  ~ 70429,
+      Ciudad.de.ubicación == "roberto payán"  ~ 52621,
+      Ciudad.de.ubicación == "sucre"  ~ 70771,
+      Ciudad.de.ubicación == "guataquí"  ~ 25324,
+      Ciudad.de.ubicación == "guayatá"  ~ 15325,
+      Ciudad.de.ubicación == "galeras"  ~ 70235,
+      Ciudad.de.ubicación == "san bernardo del viento"  ~ 23675,
+      Ciudad.de.ubicación == "sardinata"  ~ 54720,
+      Ciudad.de.ubicación == "dabeiba"  ~ 5234,
+      Ciudad.de.ubicación == "hispania"  ~ 5353,
+      Ciudad.de.ubicación == "el carmen de atrato"  ~ 27245,
+      Ciudad.de.ubicación == "maceo"  ~ 5425,
+      Ciudad.de.ubicación == "san antonio"  ~ 73675,
+      Ciudad.de.ubicación == "pailitas"  ~ 20517,
+      Ciudad.de.ubicación == "sabana de torres"  ~ 68655,
+      Ciudad.de.ubicación == "cucunubá"  ~ 25224,
+      Ciudad.de.ubicación == "san martín de loba"  ~ 13667,
+      Ciudad.de.ubicación == "chaparral"  ~ 73168,
+      Ciudad.de.ubicación == "margarita"  ~ 13440,
+      Ciudad.de.ubicación == "san fernando"  ~ 13650,
+      Ciudad.de.ubicación == "tiquisio"  ~ 13810,
+      Ciudad.de.ubicación == "hobo"  ~ 41349,
+      Ciudad.de.ubicación == "lloró"  ~ 27413,
+      Ciudad.de.ubicación == "puerto wilches"  ~ 68575,
+      Ciudad.de.ubicación == "mongua"  ~ 15464,
+      Ciudad.de.ubicación == "vistahermosa"  ~ 50711,
+      Ciudad.de.ubicación == "cicuco"  ~ 13188,
+      Ciudad.de.ubicación == "antioquia"  ~ 5,
+      Ciudad.de.ubicación == "vigía del fuerte"  ~ 5873,
+      Ciudad.de.ubicación == "simijaca"  ~ 25745,
+      Ciudad.de.ubicación == "san pelayo"  ~ 23686,
+      Ciudad.de.ubicación == "pedraza"  ~ 47441,
+      Ciudad.de.ubicación == "samaniego"  ~ 52678,
+      Ciudad.de.ubicación == "gamarra"  ~ 20295,
+      Ciudad.de.ubicación == "villa de de ubaté"  ~ 25843,
+      Ciudad.de.ubicación == "ubaté"  ~ 25843,
+      Ciudad.de.ubicación == "coyaima"  ~ 73217,
+      Ciudad.de.ubicación == "san andrés de cuerquía"  ~ 5647,
+      Ciudad.de.ubicación == "natagaima"  ~ 73483,
+      Ciudad.de.ubicación == "cajamarca"  ~ 73124,
+      Ciudad.de.ubicación == "bajo baudó"  ~ 27077,
+      Ciudad.de.ubicación == "la gloria"  ~ 20383,
+      Ciudad.de.ubicación == "puerto libertador"  ~ 23580,
+      Ciudad.de.ubicación == "tolú viejo"  ~ 70823,
+      Ciudad.de.ubicación == "astrea"  ~ 20032,
+      Ciudad.de.ubicación == "plato"  ~ 47555,
+      Ciudad.de.ubicación == "arauquita"  ~ 81065,
+      Ciudad.de.ubicación == "pueblo rico"  ~ 66572,
+      Ciudad.de.ubicación == "san andrés de sotavento"  ~ 23670,
+      Ciudad.de.ubicación == "moñitos"  ~ 23500,
+      Ciudad.de.ubicación == "cajibío"  ~ 19130,
+      Ciudad.de.ubicación == "caldono"  ~ 19137,
+      Ciudad.de.ubicación == "san jacinto"  ~ 13654,
+      Ciudad.de.ubicación == "beltrán"  ~ 25086,
+      Ciudad.de.ubicación == "aguazul"  ~ 85010,
+      Ciudad.de.ubicación == "zarzal"  ~ 76895,
+      Ciudad.de.ubicación == "pijiño del carmen"  ~ 47545,
+      Ciudad.de.ubicación == "san carlos"  ~ 23678,
+      Ciudad.de.ubicación == "zambrano"  ~ 13894,
+      Ciudad.de.ubicación == "soplaviento"  ~ 13760,
+      Ciudad.de.ubicación == "coloso"  ~ 70204,
+      Ciudad.de.ubicación == "cáceres"  ~ 5120,
+      Ciudad.de.ubicación == "guasca"  ~ 25322,
+      Ciudad.de.ubicación == "aranzazu"  ~ 17050,
+      Ciudad.de.ubicación == "puerto berrío"  ~ 5579,
+      Ciudad.de.ubicación == "pamplonita"  ~ 54520,
+      Ciudad.de.ubicación == "el roble"  ~ 70233,
+      Ciudad.de.ubicación == "bojacá"  ~ 25099,
+      Ciudad.de.ubicación == "san estanislao"  ~ 13647,
+      Ciudad.de.ubicación == "san alberto"  ~ 20710,
+      Ciudad.de.ubicación == "caracolí"  ~ 5142,
+      Ciudad.de.ubicación == "tamalameque"  ~ 20787,
+      Ciudad.de.ubicación == "el carmen de chucurí"  ~ 68235,
+      Ciudad.de.ubicación == "balboa"  ~ 19075,
+      Ciudad.de.ubicación == "saravena"  ~ 81736,
+      Ciudad.de.ubicación == "arenal"  ~ 13042,
+      Ciudad.de.ubicación == "san antero"  ~ 23672,
+      Ciudad.de.ubicación == "taraira"  ~ 97666,
+      Ciudad.de.ubicación == "remedios"  ~ 5604,
+      Ciudad.de.ubicación == "silos"  ~ 54743,
+      Ciudad.de.ubicación == "chalán"  ~ 70230,
+      Ciudad.de.ubicación == "la vega"  ~ 25402,
+      Ciudad.de.ubicación == "maripí"  ~ 15442,
+      Ciudad.de.ubicación == "coveñas"  ~ 70221,
+      Ciudad.de.ubicación == "ramiriquí"  ~ 15599,
+      Ciudad.de.ubicación == "susacón"  ~ 15774,
+      Ciudad.de.ubicación == "anzá"  ~ 5044,
+      Ciudad.de.ubicación == "nemocón"  ~ 25486,
+      Ciudad.de.ubicación == "ubalá"  ~ 25839,
+      Ciudad.de.ubicación == "lérida"  ~ 73408,
+      Ciudad.de.ubicación == "apía"  ~ 66045,
+      Ciudad.de.ubicación == "fredonia"  ~ 5282,
+      Ciudad.de.ubicación == "maní"  ~ 85139,
+      Ciudad.de.ubicación == "anorí"  ~ 5040,
+      Ciudad.de.ubicación == "pelaya"  ~ 20550,
+      Ciudad.de.ubicación == "ovejas"  ~ 70508,
+      Ciudad.de.ubicación == "san benito abad"  ~ 70678,
+      Ciudad.de.ubicación == "guamal"  ~ 47318,
+      Ciudad.de.ubicación == "remolino"  ~ 47605,
+      Ciudad.de.ubicación == "la palma"  ~ 25394,
+      Ciudad.de.ubicación == "corinto"  ~ 19212,
+      Ciudad.de.ubicación == "el águila"  ~ 76243,
+      Ciudad.de.ubicación == "ciudad bolívar"  ~ 5101,
+      Ciudad.de.ubicación == "carmen de carupa"  ~ 25154,
+      Ciudad.de.ubicación == "caicedonia"  ~ 76122,
+      Ciudad.de.ubicación == "mutatá"  ~ 5480,
+      Ciudad.de.ubicación == "la celia"  ~ 66383,
+      Ciudad.de.ubicación == "barichara"  ~ 68079,
+      Ciudad.de.ubicación == "buriticá"  ~ 5113,
+      Ciudad.de.ubicación == "puerto nare"  ~ 5585,
+      Ciudad.de.ubicación == "murindó"  ~ 5475,
+      Ciudad.de.ubicación == "montecristo"  ~ 13458,
+      Ciudad.de.ubicación == "pinillos"  ~ 13549,
+      Ciudad.de.ubicación == "arroyohondo"  ~ 13062,
+      Ciudad.de.ubicación == "toribío"  ~ 19821,
+      Ciudad.de.ubicación == "puerto parra"  ~ 68573,
+      Ciudad.de.ubicación == "nobsa"  ~ 15491,
+      Ciudad.de.ubicación == "pore"  ~ 85263,
+      Ciudad.de.ubicación == "funes"  ~ 52287,
+      Ciudad.de.ubicación == "acandí"  ~ 27006,
+      Ciudad.de.ubicación == "bochalema"  ~ 54099,
+      Ciudad.de.ubicación == "necoclí"  ~ 5490,
+      Ciudad.de.ubicación == "altos del rosario"  ~ 13030,
+      Ciudad.de.ubicación == "gámeza"  ~ 15296,
+      Ciudad.de.ubicación == "san gil"  ~ 68679,
+      Ciudad.de.ubicación == "vergara"  ~ 25862,
+      Ciudad.de.ubicación == "alvarado"  ~ 73026,
+      Ciudad.de.ubicación == "la uvita"  ~ 15403,
+      Ciudad.de.ubicación == "nocaima"  ~ 25491,
+      Ciudad.de.ubicación == "puerto boyacá"  ~ 15572,
+      Ciudad.de.ubicación == "tota"  ~ 15822,
+      Ciudad.de.ubicación == "puerto triunfo"  ~ 5591,
+      Ciudad.de.ubicación == "rosas"  ~ 19622,
+      Ciudad.de.ubicación == "medio san juan"  ~ 27450,
+      Ciudad.de.ubicación == "chitagá"  ~ 54174,
+      Ciudad.de.ubicación == "la apartada"  ~ 23350,
+      Ciudad.de.ubicación == "heliconia"  ~ 5347,
+      Ciudad.de.ubicación == "los andes"  ~ 52418,
+      Ciudad.de.ubicación == "medio atrato"  ~ 27425,
+      Ciudad.de.ubicación == "consacá"  ~ 52207,
+      Ciudad.de.ubicación == "quetame"  ~ 25594,
+      Ciudad.de.ubicación == "ebéjico"  ~ 5240,
+      Ciudad.de.ubicación == "segovia"  ~ 5736,
+      Ciudad.de.ubicación == "achí"  ~ 13006,
+      Ciudad.de.ubicación == "betulia"  ~ 5093,
+      Ciudad.de.ubicación == "zaragoza"  ~ 5895,
+      Ciudad.de.ubicación == "guavatá"  ~ 68324,
+      Ciudad.de.ubicación == "covarachía"  ~ 15218,
+      Ciudad.de.ubicación == "casabianca"  ~ 73152,
+      Ciudad.de.ubicación == "san felipe"  ~ 94883,
+      Ciudad.de.ubicación == "mapiripana"  ~ 94663,
+      Ciudad.de.ubicación == "el molino"  ~ 44110,
+      Ciudad.de.ubicación == "concordia"  ~ 47205,
+      Ciudad.de.ubicación == "la chorrera"  ~ 91405,
+      Ciudad.de.ubicación == "solita"  ~ 18785,
+      Ciudad.de.ubicación == "el doncello"  ~ 18247,
+      Ciudad.de.ubicación == "mercaderes"  ~ 19450,
+      Ciudad.de.ubicación == "padilla"  ~ 19513,
+      Ciudad.de.ubicación == "gualmatán"  ~ 52323,
+      Ciudad.de.ubicación == "briceño"  ~ 5107,
+      Ciudad.de.ubicación == "san vicente ferrer"  ~ 5674,
+      Ciudad.de.ubicación == "morales"  ~ 19473,
+      Ciudad.de.ubicación == "los santos"  ~ 68418,
+      Ciudad.de.ubicación == "tausa"  ~ 25793,
+      Ciudad.de.ubicación == "entrerríos"  ~ 5264,
+      Ciudad.de.ubicación == "pana pana"  ~ 94887,
+      Ciudad.de.ubicación == "oiba"  ~ 94887,
+      Ciudad.de.ubicación == "pana pana"  ~ 68500,
+      Ciudad.de.ubicación == "galán"  ~ 94887,
+      Ciudad.de.ubicación == "puerto rico"  ~ 18592,
+      Ciudad.de.ubicación == "tibasosa"  ~ 15806,
+      Ciudad.de.ubicación == "suárez"  ~ 19780,
+      Ciudad.de.ubicación == "siachoque"  ~ 15740,
+      Ciudad.de.ubicación == "abejorral"  ~ 5002,
+      Ciudad.de.ubicación == "ragonvalia"  ~ 54599,
+      Ciudad.de.ubicación == "sopetrán"  ~ 5761,
+      Ciudad.de.ubicación == "peque"  ~ 5543,
+      Ciudad.de.ubicación == "carmen del darién"  ~ 27150,
+      Ciudad.de.ubicación == "mogotes"  ~ 68464,
+      Ciudad.de.ubicación == "san josé del fragua"  ~ 18610,
+      Ciudad.de.ubicación == "supía"  ~ 17777,
+      Ciudad.de.ubicación == "santa helena del opón"  ~ 68720,
+      Ciudad.de.ubicación == "armero"  ~ 73055,
+      Ciudad.de.ubicación == "hato"  ~ 68344,
+      Ciudad.de.ubicación == "arbeláez"  ~ 25053,
+      Ciudad.de.ubicación == "villagarzón"  ~ 86885,
+      Ciudad.de.ubicación == "momil"  ~ 23464,
+      Ciudad.de.ubicación == "leiva"  ~ 52405,
+      Ciudad.de.ubicación == "santa isabel"  ~ 73686,
+      Ciudad.de.ubicación == "valparaíso"  ~ 5856,
+      Ciudad.de.ubicación == "san pedro los milagros"  ~ 5664,
+      Ciudad.de.ubicación == "hatillo de loba"  ~ 13300,
+      Ciudad.de.ubicación == "tibaná"  ~ 15804,
+      Ciudad.de.ubicación == "san josé de uré"  ~ 23682,
+      Ciudad.de.ubicación == "bituima"  ~ 25095,
+      Ciudad.de.ubicación == "chinácota"  ~ 54172,
+      Ciudad.de.ubicación == "gómez platal"  ~ 5310,
+      Ciudad.de.ubicación == "tibaná"  ~ 15804,
+      Ciudad.de.ubicación == "gachalá"  ~ 25293,
+      Ciudad.de.ubicación == "saboyá"  ~ 15632,
+      Ciudad.de.ubicación == "norosí"  ~ 13490,
+      Ciudad.de.ubicación == "alpujarra"  ~ 73024,
+      Ciudad.de.ubicación == "cantagallo"  ~ 13160,
+      Ciudad.de.ubicación == "gómez plata"  ~ 5310,
+      Ciudad.de.ubicación == "uramita"  ~ 5842,
+      Ciudad.de.ubicación == "titiribí"  ~ 5809,
+      Ciudad.de.ubicación == "onzaga"  ~ 68502,
+      Ciudad.de.ubicación == "orocué"  ~ 85230,
+      Ciudad.de.ubicación == "rioblanco"  ~ 73616,
+      Ciudad.de.ubicación == "suaza"  ~ 41770,
+      Ciudad.de.ubicación == "gachetá"  ~ 25297,
+      Ciudad.de.ubicación == "fúquene"  ~ 25288,
+      Ciudad.de.ubicación == "belén de los andaquíes"  ~ 18094,
+      Ciudad.de.ubicación == "san rafael"  ~ 5667,
+      Ciudad.de.ubicación == "la pedrera"  ~ 91407,
+      Ciudad.de.ubicación == "ciénega"  ~ 15189,
+      Ciudad.de.ubicación == "urumita"  ~ 44855,
+      Ciudad.de.ubicación == "san cayetano"  ~ 54673,
+      Ciudad.de.ubicación == "el castillo"  ~ 50251,
+      Ciudad.de.ubicación == "landázuri"  ~ 68385,
+      Ciudad.de.ubicación == "caparrapí"  ~ 25148,
+      Ciudad.de.ubicación == "saldaña"  ~ 73671,
+      Ciudad.de.ubicación == "santo domingo"  ~ 5690,
+      Ciudad.de.ubicación == "cepitá"  ~ 68160,
+      Ciudad.de.ubicación == "dolores"  ~ 73236,
+      Ciudad.de.ubicación == "urrao"  ~ 5847,
+      Ciudad.de.ubicación == "tarqui"  ~ 41791,
+      Ciudad.de.ubicación == "san josé la montaña"  ~ 5658,
+      Ciudad.de.ubicación == "olaya"  ~ 5501,
+      Ciudad.de.ubicación == "villavieja"  ~ 41872,
+      Ciudad.de.ubicación == "castilla la nueva"  ~ 50150,
+      Ciudad.de.ubicación == "supatá"  ~ 25777,
+      Ciudad.de.ubicación == "nimaima"  ~ 25489,
+      Ciudad.de.ubicación == "valle de san josé"  ~ 68855,
+      Ciudad.de.ubicación == "soatá"  ~ 15753,
+      Ciudad.de.ubicación == "san jacinto del cauca"  ~ 13655,
+      Ciudad.de.ubicación == "nueva granada"  ~ 47460,
+      Ciudad.de.ubicación == "soracá"  ~ 15764,
+      Ciudad.de.ubicación == "tuta"  ~ 15837,
+      Ciudad.de.ubicación == "belmira"  ~ 5086,
+      Ciudad.de.ubicación == "santa bárbara de pinto"  ~ 47720,
+      Ciudad.de.ubicación == "san zenón"  ~ 47703,
+      Ciudad.de.ubicación == "quebradanegra"  ~ 25592,
+      Ciudad.de.ubicación == "san luis de cubarral"  ~ 50223,
+      Ciudad.de.ubicación == "san jerónimo"  ~ 5656,
+      Ciudad.de.ubicación == "monguí"  ~ 15466,
+      Ciudad.de.ubicación == "monterrey"  ~ 85162,
+      Ciudad.de.ubicación == "puerto caicedo"  ~ 86569,
+      Ciudad.de.ubicación == "la primavera"  ~ 99524,
+      Ciudad.de.ubicación == "versalles"  ~ 76863,
+      Ciudad.de.ubicación == "anzoátegui"  ~ 73043,
+      Ciudad.de.ubicación == "pital"  ~ 41548,
+      Ciudad.de.ubicación == "san joaquín"  ~ 68682,
+      Ciudad.de.ubicación == "campamento"  ~ 5134,
+      Ciudad.de.ubicación == "arboledas"  ~ 54051,
+      Ciudad.de.ubicación == "quinchía"  ~ 66594,
+      Ciudad.de.ubicación == "talaigua nuevo"  ~ 13780,
+      Ciudad.de.ubicación == "ortega"  ~ 73504,
+      Ciudad.de.ubicación == "herveo"  ~ 73347,
+      Ciudad.de.ubicación == "chivolo"  ~ 47170,
+      Ciudad.de.ubicación == "salento"  ~ 63690,
+      Ciudad.de.ubicación == "la montañita"  ~ 18410,
+      Ciudad.de.ubicación == "fosca"  ~ 25281,
+      Ciudad.de.ubicación == "el paujíl"  ~ 18256,
+      Ciudad.de.ubicación == "morelia"  ~ 18479,
+      Ciudad.de.ubicación == "liborina"  ~ 5411,
+      Ciudad.de.ubicación == "buesaco"  ~ 52110,
+      Ciudad.de.ubicación == "la victoria"  ~ 76403,
+      Ciudad.de.ubicación == "nóvita"  ~ 27491,
+      Ciudad.de.ubicación == "palocabildo	"  ~ 73520,
+      Ciudad.de.ubicación == "aguada"  ~ 68013,
+      Ciudad.de.ubicación == "mesetas"  ~ 50330,
+      Ciudad.de.ubicación == "pácora"  ~ 17513,
+      Ciudad.de.ubicación == "vegachí"  ~ 5858,
+      Ciudad.de.ubicación == "palocabildo"  ~ 73520,
+      Ciudad.de.ubicación == "california"  ~ 68132,
+      Ciudad.de.ubicación == "san calixto"  ~ 54670,
+      Ciudad.de.ubicación == "íquira"  ~ 41357,
+      Ciudad.de.ubicación == "algarrobo"  ~ 47030,
+      Ciudad.de.ubicación == "sibundoy"  ~ 86749,
+      Ciudad.de.ubicación == "arcabuco"  ~ 15051,
+      Ciudad.de.ubicación == "sáchica"  ~ 15638,
+      Ciudad.de.ubicación == "hato corozal"  ~ 85125,
+      Ciudad.de.ubicación == "mapiripán"  ~ 50325,
+      Ciudad.de.ubicación == "matanza"  ~ 68432,
+      Ciudad.de.ubicación == "nuquí"  ~ 27495,
+      Ciudad.de.ubicación == "el tarra"  ~ 54250,
+      Ciudad.de.ubicación == "durania"  ~ 54239,
+      Ciudad.de.ubicación == "gama"  ~ 25299,
+      Ciudad.de.ubicación == "pandi"  ~ 25524,
+      Ciudad.de.ubicación == "génova"  ~ 63302,
+      Ciudad.de.ubicación == "páramo"  ~ 68533,
+      Ciudad.de.ubicación == "san josé de miranda"  ~ 68684,
+      Ciudad.de.ubicación == "páez"  ~ 19517,
+      Ciudad.de.ubicación == "carmen de apicalá"  ~ 73148,
+      Ciudad.de.ubicación == "salamina"  ~ 17653,
+      Ciudad.de.ubicación == "jambaló"  ~ 19364,
+      Ciudad.de.ubicación == "carolina"  ~ 5150,
+      Ciudad.de.ubicación == "peñol"  ~ 5541,
+      Ciudad.de.ubicación == "iza"  ~ 15362,
+      Ciudad.de.ubicación == "guadalupe"  ~ 41319,
+      Ciudad.de.ubicación == "paratebueno"  ~ 25530,
+      Ciudad.de.ubicación == "la sierra"  ~ 19392,
+      Ciudad.de.ubicación == "la esperanza"  ~ 54385,
+      Ciudad.de.ubicación == "belalcázar"  ~ 17088,
+      Ciudad.de.ubicación == "útica"  ~ 25851,
+      Ciudad.de.ubicación == "ataco"  ~ 73067,
+      Ciudad.de.ubicación == "lourdes"  ~ 54418,
+      Ciudad.de.ubicación == "yondó"  ~ 5893,
+      Ciudad.de.ubicación == "yondó"  ~ 5893,
+      Ciudad.de.ubicación == "chíquiza"  ~ 15232,
+      Ciudad.de.ubicación == "magdalena"  ~ 47,
+      Ciudad.de.ubicación == "tarapacá"  ~ 91798,
+      Ciudad.de.ubicación == "amalfi"  ~ 5031,
+      Ciudad.de.ubicación == "aratoca"  ~ 68051,
+      Ciudad.de.ubicación == "el guamo"  ~ 13248,
+      Ciudad.de.ubicación == "el playón"  ~ 68255,
+      Ciudad.de.ubicación == "vélez"  ~ 68861,
+      Ciudad.de.ubicación == "guachetá"  ~ 25317,
+      Ciudad.de.ubicación == "la argentina"  ~ 41378,
+      Ciudad.de.ubicación == "ambalema"  ~ 73030,
+      Ciudad.de.ubicación == "santacruz"  ~ 52699,
+      Ciudad.de.ubicación == "teruel"  ~ 41801,
+      Ciudad.de.ubicación == "quípama"  ~ 15580,
+      Ciudad.de.ubicación == "cunday"  ~ 73226,
+      Ciudad.de.ubicación == "solano"  ~ 18765,
+      Ciudad.de.ubicación == "fuente de oro"  ~ 50287,
+      Ciudad.de.ubicación == "trinidad"  ~ 85430,
+      Ciudad.de.ubicación == "cuítiva"  ~ 15226,
+      Ciudad.de.ubicación == "la pintada"  ~ 5390,
+      Ciudad.de.ubicación == "la macarena"  ~ 50350,
+      Ciudad.de.ubicación == "jardín"  ~ 5364,
+      Ciudad.de.ubicación == "la jagua del pilar"  ~ 44420,
+      Ciudad.de.ubicación == "carcasí"  ~ 68152,
+      Ciudad.de.ubicación == "icononzo"  ~ 73352,
+      Ciudad.de.ubicación == "tangua"  ~ 52788,
+      Ciudad.de.ubicación == "angelópolis"  ~ 5036,
+      Ciudad.de.ubicación == "pesca"  ~ 15542,
+      Ciudad.de.ubicación == "toro"  ~ 76823,
+      Ciudad.de.ubicación == "prado"  ~ 73563,
+      Ciudad.de.ubicación == "teorama"  ~ 54800,
+      Ciudad.de.ubicación == "curillo"  ~ 18205,
+      Ciudad.de.ubicación == "zapatoca"  ~ 68895,
+      Ciudad.de.ubicación == "regidor"  ~ 13580,
+      Ciudad.de.ubicación == "motavita"  ~ 15476,
+      Ciudad.de.ubicación == "milán"  ~ 18460,
+      Ciudad.de.ubicación == "venadillo"  ~ 73861,
+      Ciudad.de.ubicación == "baraya"  ~ 41078,
+      Ciudad.de.ubicación == "el carmen"  ~ 54245,
+      Ciudad.de.ubicación == "betania"  ~ 5091,
+      Ciudad.de.ubicación == "san benito"  ~ 68673,
+      Ciudad.de.ubicación == "chaguaní"  ~ 25168,
+      Ciudad.de.ubicación == "santa maría"  ~ 41676,
+      Ciudad.de.ubicación == "confines"  ~ 68209,
+      Ciudad.de.ubicación == "el guacamayo"  ~ 68245,
+      Ciudad.de.ubicación == "altamira"  ~ 41026,
+      Ciudad.de.ubicación == "zapayán"  ~ 47960,
+      Ciudad.de.ubicación == "pinchote"  ~ 68549,
+      Ciudad.de.ubicación == "la merced"  ~ 17388,
+      Ciudad.de.ubicación == "villagómez"  ~ 25871,
+      Ciudad.de.ubicación == "úmbita"  ~ 15842,
+      Ciudad.de.ubicación == "iles"  ~ 52352,
+      Ciudad.de.ubicación == "fortul"  ~ 81300,
+      Ciudad.de.ubicación == "sotaquirá"  ~ 15763,
+      Ciudad.de.ubicación == "pachavita"  ~ 15511,
+      Ciudad.de.ubicación == "coromoro"  ~ 68217,
+      Ciudad.de.ubicación == "cumaribo"  ~ 99773,
+      Ciudad.de.ubicación == "tona"  ~ 68820,
+      Ciudad.de.ubicación == "almeida"  ~ 15022,
+      Ciudad.de.ubicación == "sabanas de san ángel"  ~ 47660,
+      Ciudad.de.ubicación == "valle de san juan"  ~ 73854,
+      Ciudad.de.ubicación == "vetas"  ~ 68867,
+      Ciudad.de.ubicación == "san pablo de borbur"  ~ 15681,
+      Ciudad.de.ubicación == "chipatá"  ~ 68179,
+      Ciudad.de.ubicación == "zetaquira"  ~ 15897,
+      Ciudad.de.ubicación == "pensilvania"  ~ 17541,
+      Ciudad.de.ubicación == "barranco minas"  ~ 94343,
+      Ciudad.de.ubicación == "sapuyes"  ~ 52720,
+      Ciudad.de.ubicación == "bucarasica"  ~ 54109,
+      Ciudad.de.ubicación == "villahermosa"  ~ 73870,
+      Ciudad.de.ubicación == "guaca"  ~ 68318,
+      Ciudad.de.ubicación == "cucutilla"  ~ 54223,
+      Ciudad.de.ubicación == "caramanta"  ~ 5145,
+      Ciudad.de.ubicación == "río iró"  ~ 27580,
+      Ciudad.de.ubicación == "guayabetal"  ~ 25335,
+      Ciudad.de.ubicación == "puracé"  ~ 19585,
+      Ciudad.de.ubicación == "elías"  ~ 41244,
+      Ciudad.de.ubicación == "pueblorrico"  ~ 5576,
+      Ciudad.de.ubicación == "inzá"  ~ 19355,
+      Ciudad.de.ubicación == "otanche"  ~ 15507,
+      Ciudad.de.ubicación == "molagavita"  ~ 68468,
+      Ciudad.de.ubicación == "alejandría"  ~ 5021,
+      Ciudad.de.ubicación == "tópaga"  ~ 15820,
+      Ciudad.de.ubicación == "sativasur"  ~ 15723,
+      Ciudad.de.ubicación == "guayabal de síquima"  ~ 25328,
+      Ciudad.de.ubicación == "pacoa"  ~ 97511,
+      Ciudad.de.ubicación == "sotara"  ~ 19760,
+      Ciudad.de.ubicación == "guacamayas"  ~ 15317,
+      Ciudad.de.ubicación == "sutatausa"  ~ 25781,
+      Ciudad.de.ubicación == "barranca de upía"  ~ 50110,
+      Ciudad.de.ubicación == "capitanejo"  ~ 68147,
+      Ciudad.de.ubicación == "pijao"  ~ 63548,
+      Ciudad.de.ubicación == "contratación"  ~ 68211,
+      Ciudad.de.ubicación == "riofrío"  ~ 76616,
+      Ciudad.de.ubicación == "pajarito"  ~ 15518,
+      Ciudad.de.ubicación == "hacarí"  ~ 54344,
+      Ciudad.de.ubicación == "herrán"  ~ 54347,
+      Ciudad.de.ubicación == "el espino"  ~ 15248,
+      Ciudad.de.ubicación == "chita"  ~ 15183,
+      Ciudad.de.ubicación == "lejanías"  ~ 50400,
+      Ciudad.de.ubicación == "chima"  ~ 68176,
+      Ciudad.de.ubicación == "san josé de pare"  ~ 15664,
+      Ciudad.de.ubicación == "san luis de palenque"  ~ 85325,
+      Ciudad.de.ubicación == "tenerife"  ~ 47798,
+      Ciudad.de.ubicación == "jenesano"  ~ 15367,
+      Ciudad.de.ubicación == "ráquira"  ~ 15600,
+      Ciudad.de.ubicación == "coello"  ~ 73200,
+      Ciudad.de.ubicación == "puerto lleras"  ~ 50577,
+      Ciudad.de.ubicación == "boavita"  ~ 15097,
+      Ciudad.de.ubicación == "guática"  ~ 66318,
+      Ciudad.de.ubicación == "mistrató"  ~ 66456,
+      Ciudad.de.ubicación == "chiscas"  ~ 15180,
+      Ciudad.de.ubicación == "gutiérrez"  ~ 25339,
+      Ciudad.de.ubicación == "socotá"  ~ 15755,
+      Ciudad.de.ubicación == "san luis de gaceno"  ~ 15667,
+      Ciudad.de.ubicación == "chivatá"  ~ 15187,
+      Ciudad.de.ubicación == "el cocuy"  ~ 15244,
+      Ciudad.de.ubicación == "paz de río"  ~ 15537,
+      Ciudad.de.ubicación == "puerto concordia"  ~ 50450,
+      Ciudad.de.ubicación == "el retorno"  ~ 95025,
+      Ciudad.de.ubicación == "cáchira"  ~ 54128,
+      Ciudad.de.ubicación == "victoria"  ~ 17873,
+      Ciudad.de.ubicación == "salazar"  ~ 54660,
+      Ciudad.de.ubicación == "chitaraque"  ~ 15185,
+      Ciudad.de.ubicación == "policarpa"  ~ 52540,
+      Ciudad.de.ubicación == "ospina"  ~ 52506,
+      Ciudad.de.ubicación == "susa"  ~ 25779,
+      Ciudad.de.ubicación == "cerinza"  ~ 15162,
+      Ciudad.de.ubicación == "gachantivá"  ~ 15293,
+      Ciudad.de.ubicación == "panqueba"  ~ 15522,
+      Ciudad.de.ubicación == "el litoral san juan"  ~ 27250,
+      Ciudad.de.ubicación == "jerusalén"  ~ 25368,
+      Ciudad.de.ubicación == "simití"  ~ 13744,
+      Ciudad.de.ubicación == "sora"  ~ 15762,
+      Ciudad.de.ubicación == "uribe"  ~ 50370,
+      Ciudad.de.ubicación == "tesalia"  ~ 41797,
+      Ciudad.de.ubicación == "florián"  ~ 68271,
+      Ciudad.de.ubicación == "san josé"  ~ 17665,
+      Ciudad.de.ubicación == "encino"  ~ 68264,
+      Ciudad.de.ubicación == "piamonte"  ~ 19533,
+      Ciudad.de.ubicación == "sativanorte"  ~ 15720,
+      Ciudad.de.ubicación == "quipile"  ~ 25596,
+      Ciudad.de.ubicación == "campohermoso"  ~ 15135,
+      Ciudad.de.ubicación == "chivor"  ~ 15236,
+      Ciudad.de.ubicación == "recetor"  ~ 85279,
+      Ciudad.de.ubicación == "el dorado"  ~ 50270,
+      Ciudad.de.ubicación == "macanal"  ~ 15425,
+      Ciudad.de.ubicación == "san sebastián"  ~ 19693,
+      Ciudad.de.ubicación == "carurú"  ~ 97161,
+      Ciudad.de.ubicación == "filadelfia"  ~ 17272,
+      Ciudad.de.ubicación == "el rosario"  ~ 52256,
+      Ciudad.de.ubicación == "gámbita"  ~ 68298,
+      Ciudad.de.ubicación == "macaravita"  ~ 68425,
+      Ciudad.de.ubicación == "yalí"  ~ 5885,
+      Ciudad.de.ubicación == "enciso"  ~ 68266,
+      Ciudad.de.ubicación == "tununguá"  ~ 15832,
+      Ciudad.de.ubicación == "marulanda"  ~ 17446,
+      Ciudad.de.ubicación == "tibacuy"  ~ 25805,
+      Ciudad.de.ubicación == "pulí"  ~ 25580,
+      Ciudad.de.ubicación == "güepsa"  ~ 68327,
+      Ciudad.de.ubicación == "sácama"  ~ 85315,
+      Ciudad.de.ubicación == "puente nacional"  ~ 68572,
+      Ciudad.de.ubicación == "falan"  ~ 73270,
+      Ciudad.de.ubicación == "santa rosalía"  ~ 99624,
+      Ciudad.de.ubicación == "el tablón de gómez"  ~ 52258,
+      Ciudad.de.ubicación == "puerto rondón"  ~ 81591,
+      Ciudad.de.ubicación == "juradó"  ~ 27372,
+      Ciudad.de.ubicación == "floresta"  ~ 15276,
+      Ciudad.de.ubicación == "ocamonte"  ~ 68498,
+      Ciudad.de.ubicación == "esimacota"  ~ 68745,
+      Ciudad.de.ubicación == "nunchía"  ~ 85225,
+      Ciudad.de.ubicación == "támara"  ~ 85400,
+      Ciudad.de.ubicación == "tibacuy"  ~ 25805,
+      Ciudad.de.ubicación == "tununguá"  ~ 15832,
+      Ciudad.de.ubicación == "sutatenza"  ~ 15778,
+      Ciudad.de.ubicación == "suratá"  ~ 68780,
+      Ciudad.de.ubicación == "berbeo"  ~ 15090,
+      Ciudad.de.ubicación == "palmar"  ~ 68522,
+      Ciudad.de.ubicación == "charta"  ~ 68169,
+      Ciudad.de.ubicación == "tibirita"  ~ 25807,
+      Ciudad.de.ubicación == "tutasá"  ~ 15839,
+      Ciudad.de.ubicación == "la capilla"  ~ 15380,
+      Ciudad.de.ubicación == "simacota"  ~ 68745,
+      Ciudad.de.ubicación == "palmas del socorro"  ~ 68524,
+      Ciudad.de.ubicación == "jesús maría"  ~ 68368,
+      Ciudad.de.ubicación == "tutasá"  ~ 15839,
+      Ciudad.de.ubicación == "tutazá"  ~ 15839,
+      Ciudad.de.ubicación == "roncesvalles"  ~ 73622
+
+    )
+  )
+
+
+is.na(COVID19_Colombia$Codigo)
+
+COVID19_Colombia <-  merge(COVID19_Colombia, municipioscolombia, by.x="Codigo", by.y="Codigo", all.x=TRUE)
+COVID19_Colombia <- arrange(COVID19_Colombia,ID.de.caso)
+
+#Eliminar columnas
+COVID19_Colombia <- select(COVID19_Colombia, -c(Nombre,Codigo_departamento, Nombre_departamento ))
+
+
+
+#municipios@dat el Id se le debe adiconar a byciudadcaso
+
+#___________________________data_______________
+
+
+
+#agrupar ubicacion y atencion
+by_ubic_aten <- COVID19_Colombia %>% group_by(COVID19_Colombia$Ciudad.de.ubicación, COVID19_Colombia$atención )
+by_atencion <- by_ubic_aten  %>% summarise(n = n())
+by_atencion
+
+#transformada de los tipos de atencion por ubicacion municpio
+#transformada_by_atencion<-data.frame(t(by_atencion))
+#tabla_name<-by_atencion$`COVID19_Colombia$Ciudad.de.ubicación`
+#colnames(transformada_by_atencion)<-tabla_name
+
+
+by_atencioncasos <- COVID19_Colombia %>% group_by( COVID19_Colombia$atención)
+by_atencioncantidad <- by_atencioncasos  %>% summarise(n = n())
+
+
+#transformada de los tipos de atencion
+
+transf_casos<-data.frame(t(by_atencioncantidad))
+tabla_nameatencion<-by_atencioncantidad$`COVID19_Colombia$atención`
+colnames(transf_casos)<-tabla_nameatencion
+
+
+by_depart_atencion <- COVID19_Colombia %>% group_by(COVID19_Colombia$Departamento.o.Distrito, COVID19_Colombia$atención)
+
+by_depart <- by_depart_atencion  %>% summarise(n = n())
+#names (by_depart) = c("Municipio", "Tipo Atencion", "n")
+#names (by_depart)
+by_depart
+
+
+by_cant_departamento <- COVID19_Colombia %>% group_by(COVID19_Colombia$Departamento.o.Distrito)
+
+by_cant_depart <- by_cant_departamento  %>% summarise(n = n())
+
+#map
+by_mapdepartamento <- COVID19_Colombia %>% group_by(COVID19_Colombia$Ciudad.de.ubicación , Latitud, Longitud)
+
+by_map_depart <- by_mapdepartamento  %>% summarise(n = n())
+by_map_depart %>% summarise(n = sum(n))
+
+by_map_depart %>%
+ungroup() %>%
+summarise(n = sum(n))
+
+#by_estado-departamento
+
+by_depart_estado <- COVID19_Colombia %>% group_by(COVID19_Colombia$Departamento.o.Distrito, COVID19_Colombia$Estado )
+by_departestado <- by_depart_estado  %>% summarise(n = n())
+by_departestado
+
+#datos por fechas
+
+#by_fechadiagnostico <- COVID19_Colombia %>% group_by(COVID19_Colombia$Fecha.diagnostico)
+byfechareporteweb <- COVID19_Colombia %>% group_by(COVID19_Colombia$fecha.reporte.web )
+by_fecha_reporte_web <- byfechareporteweb %>% summarise(n = n())
+by_fecha_reporte_web %>% summarise(n = sum(n))
+by_fecha_reporte_web %>%
+ungroup() %>%
+summarise(n = sum(n))
+
+#datos por fechas por Tipo (importado/relacionado)
+by_Relacionado <- filter(COVID19_Colombia, COVID19_Colombia$Tipo  == "Relacionado")
+by_fechaportipo <- by_Relacionado %>% group_by(by_Relacionado$fecha.reporte.web  , by_Relacionado$Tipo   )
+
+by_fec_por_tipo <- by_fechaportipo %>% summarise(n = n())
+by_fec_por_tipo %>% summarise(n = sum(n))
+by_fec_por_tipo %>%
+ungroup() %>%
+summarise(n = sum(n))
+
+#Caldas
+by_caldas <- filter(COVID19_Colombia, COVID19_Colombia$Departamento.o.Distrito == "Caldas")
+
+by_caldasatencionmunuc <- by_caldas %>% group_by(by_caldas$Ciudad.de.ubicación, by_caldas$atención )
+by_caldas_atencion_munuc <- by_caldasatencionmunuc  %>% summarise(n = n())
+
+
+#Tipo Importado o Relacionado
+by_caldasatipo <- by_caldas %>% group_by(by_caldas$Ciudad.de.ubicación , by_caldas$Tipo)
+by_caldas_tipo <- by_caldasatipo  %>% summarise(n = n())
+
+#cantidad de casos en Caldas
+by_caldasacant <- by_caldas %>% group_by(by_caldas$Ciudad.de.ubicación)
+by_caldas_cant <- by_caldasacant  %>% summarise(n = n())
+
+
+#quindio
+by_quindio <- filter(COVID19_Colombia, COVID19_Colombia$Departamento.o.Distrito == "Quindío" )
+
+by_quindioatencionmunuc <- by_quindio %>% group_by(by_quindio$Ciudad.de.ubicación, by_quindio$atención )
+by_quindio_atencion_munuc <- by_quindioatencionmunuc  %>% summarise(n = n())
+
+
+#Tipo Importado o Relacionado
+by_quindioatipo <- by_quindio %>% group_by(by_quindio$Ciudad.de.ubicación , by_quindio$Tipo)
+by_quindio_tipo <- by_quindioatipo  %>% summarise(n = n())
+
+#cantidad de casos en Caldas
+by_quindioacant <- by_quindio %>% group_by(by_quindio$Ciudad.de.ubicación)
+
+by_quindio_cant <- by_quindioacant  %>% summarise(n = n())
+
+#MODELO SIR
+N <- 48258494
+SIR <- function(time, state, parameters) {
+  par <- as.list(c(state, parameters))
+  with(par, {
+    dS <- -beta/N * I * S
+    dI <- beta/N * I * S - gamma * I
+    dR <- gamma * I
+    list(c(dS, dI, dR))
+    })
+}
+
+
+#agrupar fecha y atencion
+by_fecha_caso <- COVID19_Colombia %>% group_by(COVID19_Colombia$fecha.reporte.web , COVID19_Colombia$atención )
+byfechacaso <- by_fecha_caso  %>% summarise(n = n())
+byfechacaso
+
+library(tidyr)
+tipocasos <- byfechacaso %>%
+tidyr::pivot_wider(names_from = "COVID19_Colombia$atención", values_from = "n", values_fill = list(n = 0)) %>%
+dplyr::ungroup() 
+
+ tipocasos <-tipocasos %>%mutate(activo = sum(tipocasos$Casa + tipocasos$`Hospital UCI`  + tipocasos$Hospital)  ) %>%
+ mutate(
+    confirmed_cum = cumsum(Casa),
+    death_cum = cumsum(Fallecido),
+    recovered_cum = cumsum(Recuperado),
+    active_cum = cumsum(activo)
+)  
+tipocasos  
+
+# put the daily cumulative incidence numbers for Colombia from
+# marzo 06 to Abril 23 into a vector called Infected
+library(lubridate)
+
+sir_start_date <- "2020-03-06"
+sir_end_date <- "2020-10-20"
+
+Infected <- subset(tipocasos, tipocasos$`COVID19_Colombia$fecha.reporte.web`  >= ymd(sir_start_date) & tipocasos$`COVID19_Colombia$fecha.reporte.web`  <= ymd(sir_end_date))$active_cum
+Infected
+
+
+# N población total  colombiana 48 258 494 segun el DANE
+# https://www.dane.gov.co/index.php/estadisticas-por-tema/demografia-y-poblacion/censo-nacional-de-poblacion-y-vivenda-2018/cuantos-somos
+
+# Cree un vector de día incremental de los dias que hemos tenido el Virus
+# cases vector
+Day <- 1:(length(Infected))
+
+#Valores iniciales para el modelo SIR  N, S, I and R
+# N poblacion de colombia
+# S número de individuos susceptibles al virus
+# I infectados
+# R Recuperados 
+N <- 48258494
+init <- c(
+  S = N - Infected[1],
+  I = Infected[1],
+  R = 0
+)
+
+#Luego necesitamos definir una función para calcular el RSS , dado un conjunto de valores para β y γ
+
+# β La tasa de infección, que controla la transición entre S e I
+# γ La tasa de eliminación o recuperación, que controla la transición entre I y R
+
+# definir una función para calcular la suma residual de cuadrados
+# (RSS), pasando los parámetros beta y gamma
+RSS <- function(parameters) {
+  names(parameters) <- c("beta", "gamma")
+  out <- ode(y = init, times = Day, func = SIR, parms = parameters)
+  fit <- out[, 3]
+  sum((Infected - fit)^2)
+}
+
+
+# encontrar los valores "beta", "gamma
+
+# install.packages("deSolve")
+library(deSolve)
+
+Opt <- optim(c(0.5, 0.5),
+  RSS,
+  method = "L-BFGS-B",
+  lower = c(0, 0),
+  upper = c(1, 1)
+)
+
+# validar la convergencia
+Opt$message
+
+
+Opt_par <- setNames(Opt$par, c("beta", "gamma"))
+
+Opt_par
+
+# tiempo de dias de las prediciones
+t <- 1:as.integer(ymd(sir_end_date)-2  - ymd(sir_start_date))
+
+# obtener SIR modelo
+fitted_cumulative_incidence <- data.frame(ode(
+  y = init, times = t,
+  func = SIR, parms = Opt_par
+))
+
+
+# agregar  la columna Date  y los datos infectados
+library(dplyr)
+fitted_cumulative_incidence <- fitted_cumulative_incidence %>%
+  mutate(
+    Date = ymd(sir_start_date) + days(t - 1),
+    cumulative_incident_cases = Infected
+  )
+
+# número de reproducción se refiere al número de personas sanas que se infectan por número de personas enfermas
+#Número de reproducción Ro
+Opt_par
+
+R0 <- as.numeric(Opt_par[1] / Opt_par[2])
+R0
+
+#Un Ro de 1.476027 significa que, en promedio en Bélgica, 1.476027 personas están infectadas por cada persona infectada.
+
+poblacion_infectada <-  (1 - (1 / R0)) *100
+
+# 0.3225057
+poblacion_infectada
+
+
+
+#agrupar fecha reporte web, ubicacion y departamento
+by_fecha_reporte_ubic_depart <- COVID19_Colombia %>% group_by(COVID19_Colombia$fecha.reporte.web , COVID19_Colombia$Ciudad.de.ubicación,COVID19_Colombia$Departamento.o.Distrito   )
+byfechareportenubicdepart <- by_fecha_reporte_ubic_depart  %>% summarise(n = n())
+byfechareportenubicdepart
+
+library(tidyr)
+tiemposeries<- byfechareportenubicdepart %>%
+tidyr::pivot_wider(names_from = "COVID19_Colombia$fecha.reporte.web", values_from = "n", values_fill = list(n = 0)) %>%
+dplyr::ungroup() 
+
+
+
+#agrupar ciudad y atencion -mapa
+by_ciudad_caso <- COVID19_Colombia %>% group_by(COVID19_Colombia$Ciudad.de.ubicación,COVID19_Colombia$Latitud ,COVID19_Colombia$Longitud , COVID19_Colombia$atención )
+byciudadcaso <- by_ciudad_caso  %>% summarise(n = n())
+byciudadcaso
+
+
+library(tidyr)
+tipociudadcasos <- byciudadcaso %>%
+tidyr::pivot_wider(names_from = "COVID19_Colombia$atención", values_from = "n", values_fill = list(n = 0)) %>%
+dplyr::ungroup() 
+
+ tipociudadcasos <-tipociudadcasos %>%
+ mutate(
+    confirmed_cum = cumsum(Casa),
+    death_cum = cumsum(Fallecido),
+    recovered_cum = cumsum(Recuperado),
+  
+)  
+tipociudadcasos  
+
+#análisis time series
+#agrupar fecha
+by_fecha_n <- COVID19_Colombia %>% group_by(COVID19_Colombia$fecha.reporte.web )
+byfechan <- by_fecha_n  %>% summarise(n = n())
+byfechan
+
+#Visualización de datos de series temporales
+
+#eliminar filas NA
+#byfechan <- na.omit(byfechan)
+
+ ggplot(byfechan, aes(x = byfechan$`COVID19_Colombia$fecha.reporte.web`, y = n )) +
+	geom_line(color = "goldenrod") +
+	scale_x_date(date_labels = "%b %d",date_breaks = "7 day") +
+	theme_classic()+
+   ggtitle("Evolution del Coronavirus semanal") +
+   xlab("Semanal ") +
+   ylab("Cantidad de Casos ")
+ 
+ 
+ # Extract month and year and store in separate columns
+byfechan$month <- format(byfechan$`COVID19_Colombia$fecha.reporte.web` , format = "%m")
+byfechan$day_num <- format(byfechan$`COVID19_Colombia$fecha.reporte.web` , format = "%d")
+
+# Create a colour palette using the `colortools` package 
+library(colortools)
+library(scales)
+month_pal <- sequential("tomato", 10, what = "value", s = 0.9, alpha = 0.9, fun = "log")
+
+# Make the plot
+#seasonal <- ggplot(byfechan, aes(x =day_num , y = n , group = month, color = month)) +
+#	geom_line(aes(color = month)) +
+#	theme_classic() + 
+#	scale_color_manual(values=c("purple", "goldenrod", "dodgerblue", "forestgreen","darkviolet"))+
+ # ggtitle("Evolution del Coronavirus por mes") +
+  #  xlab("Dias ") +
+   # ylab("Cantidad de Casos ")
+#seasonal
+
+# Transform to `ts` class
+#stats package
+library(stats)
+library(forecast)
+byfechan_ts <- ts(byfechan$n,start = 03, end = 06,freq = 7)  # 
+
+# Decompose using `stl()`
+byfechan_stl <- stl(byfechan_ts, s.window = "period")
+
+
+# Generate plots
+plot(byfechan_stl)  # top=original data, second=estimated seasonal, third=estimated smooth trend, bottom=estimated irregular element i.e. unaccounted for variation
+monthplot(byfechan_ts, choice = "seasonal")  # variacion cantidad de casos cada dia
+seasonplot(byfechan_ts)
+
+#Grafico Radar
+#agrupar fecha y estado del paciente
+COVID19_Colombia$Estado <-gsub("leve", "Leve", COVID19_Colombia$Estado)
+COVID19_Colombia$Estado <-gsub("LEVE", "Leve", COVID19_Colombia$Estado)
+COVID19_Colombia$Estado <-gsub("MO", "Moderado", COVID19_Colombia$Estado)
+COVID19_Colombia$Estado <-gsub("ModeradoDERADO", "Moderado", COVID19_Colombia$Estado)
+
+by_fecha_estado <- COVID19_Colombia %>% group_by(COVID19_Colombia$fecha.reporte.web , COVID19_Colombia$Estado  )
+byfechaestado <- by_fecha_estado  %>% summarise(n = n())
+byfechaestado
+
+
+
+
+#Forecasting
+
+
+
+
+#------------------ Parameters ------------------
+# Set colors
+# https://www.w3.org/TR/css-color-3/#svg-color
+confirmed_color <- "purple"
+hospital_color <- "forestgreen"
+home_color <- "goldenrod"
+hospitaluci_color <- "darkviolet"
+recuperado_color <- "dodgerblue"
+death_color <- "red"
+
+```
+
+
+Resumen
+=======================================================================
+Row
+-----------------------------------------------------------------------
+
+### Confirmados {.value-box}
+
+```{r}
+
+valueBox(value = paste(format(sum(by_atencioncantidad$n), big.mark = ","), "", sep = " "), 
+      caption = "Total casos confirmados", 
+      icon = "fas fa-user-md", 
+      color = confirmed_color)
+```
+
+### En Casa {.value-box}
+
+```{r}
+casoscasa <- subset(by_atencioncantidad, by_atencioncantidad$`COVID19_Colombia$atención` == "Casa" )
+
+valueBox(casoscasa, caption = "Pacientes en Casa", icon="fas fa-user-md", color = home_color)
+
+```
+
+### Fallecidos {.value-box}
+
+```{r}
+casoscasa <- subset(by_atencioncantidad, by_atencioncantidad$`COVID19_Colombia$atención` == "Fallecido" )
+
+valueBox(casoscasa, caption = "Fallecidos", icon="fas fa-user-md",color = death_color)
+
+```
+
+### Hospitalizados {.value-box}
+
+```{r}
+casoscasa <- subset(by_atencioncantidad, by_atencioncantidad$`COVID19_Colombia$atención` == "Hospital" )
+
+valueBox(casoscasa, caption = "Hospitalizados", icon="fas fa-user-md",color = hospital_color)
+
+```
+
+### Hospitalizados en UCI {.value-box}
+
+```{r}
+casoscasa <- subset(by_atencioncantidad, by_atencioncantidad$`COVID19_Colombia$atención` == "Hospital UCI" )
+
+valueBox(casoscasa, caption = "Hospitalizados en UCI", icon="fas fa-user-md",color = hospitaluci_color)
+
+```
+
+### Recuperados {.value-box}
+
+```{r}
+casoscasa <- subset(by_atencioncantidad, by_atencioncantidad$`COVID19_Colombia$atención` == "Recuperado" )
+
+valueBox(casoscasa, caption = "Recuperados", icon="fas fa-user-md",color = recuperado_color)
+
+```
+
+Row
+-------------------------------------
+
+### Covid 2019 Colombia
+
+```{r}
+library(ggplot2)
+library(dplyr)
+colnames(by_atencioncantidad)
+by_atencioncantidad <- by_atencioncantidad %>% rename(Atención = `COVID19_Colombia$atención`) 
+                                         
+by_atencioncantidad %>%
+  arrange(n) %>%
+  ggplot( aes(x=Atención,  y=n, fill=Atención ) ) +
+    geom_bar(stat="identity")+
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.direction = "vertical",
+      legend.position="bottom",
+      legend.justification = "right",
+      legend.margin = margin(t = 2, r = 0, b = 2, l = 2, unit = "mm")
+    ) +
+    xlab("") +
+    ylab("Cantidad de Casos con Covid19 Colombia")
+
+
+
+```
+
+
+### Covid Colombia
+
+```{r}
+library(ggplot2)
+library(gganimate)
+library(magick)
+tipocasos <- tipocasos %>% rename(Fecha_Reporte_web = `COVID19_Colombia$fecha.reporte.web`) 
+animated_plot <-
+  ggplot(tipocasos, aes( x = Fecha_Reporte_web)) +
+  geom_line(aes(y = tipocasos$Recuperado ), colour = "blue") +
+  geom_line(aes(y = tipocasos$Casa ), colour = "yellow") +
+  geom_line(aes(y = tipocasos$`Hospital UCI` ), colour = "darkviolet") + 
+  geom_line(aes(y = tipocasos$Hospital ), colour = "green") + 
+  geom_line(aes(y = tipocasos$Fallecido ), colour = "red") + 
+  labs(
+    y = "Cantidad por Tipos de Atención",
+    x = "Mes",
+    title = "Clasificación de la Atención ",
+    subtitle = "(Rojo=Fallecido, Verde=Hospital, Morado=UCI, Amarillo=Casa, Azul=Recuperado)"
+ 
+  ) +
+  theme_light()
+  #transition_reveal(Fecha_Reporte_web )
+  
+  #animated_plot <- animated_plot + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+  #animated_plot <- animated_plot + theme(legend.position="none")
+  animated_plot
+ 
+  
+```
+Row
+-------------------------------------
+
+### Gráfica coord_polar
+
+```{r}
+
+ggplot(byfechaestado, aes(x = byfechaestado$`COVID19_Colombia$fecha.reporte.web` , y = byfechaestado$n  , fill = byfechaestado$`COVID19_Colombia$Estado` )) + 
+  geom_hline(yintercept = byfechaestado$n, colour = "black", size = .2, lty = 2) +
+  geom_col(width = 30, alpha = 1, col = "black") +
+  #scale_y_continuous(name = "Número de casos", breaks = c(1,1000,1520), limits = c(1, 1520)) +
+  scale_y_continuous(name = "Número de casos", byfechaestado$n) +
+  scale_fill_brewer(palette = "Dark2") +
+  scale_x_date(labels = date_format("%b"), breaks = date_breaks("months"))+
+  theme_light() +
+  coord_polar() + 
+  ggtitle("Casos Covid_19 Colombia por estado del paciente",
+          "Fuente: Portal de Datos Abiertos -
+          www.datos.gov.co, la fecha de la última 20 de octubre de 2020") +
+  theme(legend.position = "top",
+        text = element_text(color = "black"),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        axis.text = element_text(color = "darkviolet"),
+        plot.title = element_text(hjust = .9, face = "bold"),
+        plot.subtitle = element_text(hjust = .9, lineheight = 1.3),
+        axis.title.y = element_text(hjust = .80, face = "bold"),
+        axis.line = element_blank(),
+        axis.ticks.x = element_blank(),
+       axis.text.x = element_text(margin = margin(-.2, -.2, -.2, -.2, unit = "in")))+
+  xlab("") +
+  ylab("Meses")
+
+
+```
+
+
+Departamentos
+=======================================================================
+Column {data-height=600}
+-----------------------------------------------------------------------
+
+```{r}
+
+
+library(ggplot2)
+#by_depart <- by_depart %>% rename(Tipo_Atención = `COVID19_Colombia$atención`) 
+by_depart %>%
+  arrange(n) %>%
+  ggplot( aes(x=by_depart$`COVID19_Colombia$Departamento.o.Distrito`, y=by_depart$n, fill=by_depart$`COVID19_Colombia$atención` ) ) +
+    geom_bar(stat="identity", position=position_stack()) +
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = c(.95, .95),
+      legend.box.background = element_rect(color="green", size=1),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6)
+    ) +
+    xlab("") +
+    ylab("Cantidad de Casos por Departamento")
+
+```
+
+-----------------------------------------------------------------------
+```{r}
+
+library(ggplot2)
+by_cant_depart <- by_cant_depart %>% rename(Cantidad_Casos = n) 
+by_cant_depart %>%
+ggplot( aes(x=by_cant_depart$`COVID19_Colombia$Departamento.o.Distrito`, y=Cantidad_Casos) ) +
+    geom_segment( aes(x=by_cant_depart$`COVID19_Colombia$Departamento.o.Distrito` ,xend=by_cant_depart$`COVID19_Colombia$Departamento.o.Distrito`, y=0, yend=Cantidad_Casos), color="darkblue") +
+    geom_point(size=7, color="forestgreen") +
+  geom_text(aes(label=Cantidad_Casos), size = 2, color="white")+
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position="none"
+    ) +
+    xlab(" Municipos de Colombia")
+
+```
+
+
+Mapa Casos
+=======================================================================
+Column {data-width=400}
+-----------------------------------------------------------------------
+### Mapa casos Covid
+
+```{r}
+     
+ # carga del plano base
+    
+   library(leaflet)
+
+      
+      leaflet()  %>%  addTiles() %>%
+      addProviderTiles(providers$Stamen.Toner) %>%
+      addCircleMarkers(radius = 8,fill = 0.8,color = "crimson",
+      lng=by_map_depart$Longitud , lat=by_map_depart$Latitud , 
+      popup = paste(by_map_depart$`COVID19_Colombia$Ciudad.de.ubicación`,
+      by_map_depart$n,
+      sep = " "))       
+      
+```
+
+
+### Mapa casos Covid
+```{r}
+     
+ # carga del plano base
+
+leaflet(by_map_depart) %>% addTiles() %>%
+   addProviderTiles(providers$Esri.NatGeoWorldMap) %>%
+  addCircles(lng = by_map_depart$Longitud, lat =by_map_depart$Latitud, weight = 3,color="darkblue",radius =~sqrt(n/2)*2000,
+     popup = paste(by_map_depart$`COVID19_Colombia$Ciudad.de.ubicación`,
+      by_map_depart$n,
+      sep = " ")
+  )
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+### Mapa casos Covid
+```{r}
+library("ggplot2")
+library("dplyr")
+
+pal <- colorFactor(c("goldenrod", "red","forestgreen","darkviolet","gray", "dodgerblue"), domain = c("Casa", "Fallecido","Hospital","Hospital UCI","N/A", "Recuperado"))
+
+leaflet(byciudadcaso) %>% addTiles() %>%
+addProviderTiles(providers$Stamen.Toner) %>%
+addCircles(lng = byciudadcaso$`COVID19_Colombia$Longitud` , lat = byciudadcaso$`COVID19_Colombia$Latitud`,color = ~pal(byciudadcaso$`COVID19_Colombia$atención`),fillOpacity = 0.7,stroke=FALSE,
+radius =~4 * log(n)* 2000, popup = paste(byciudadcaso$`COVID19_Colombia$Ciudad.de.ubicación`, byciudadcaso$`COVID19_Colombia$atención` ,
+byciudadcaso$n,
+
+sep = " ")
+  ) %>%
+  addLegend("bottomright", pal = pal, values = byciudadcaso$`COVID19_Colombia$atención`,
+    title = "Tipo Atencion",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1
+  )
+
+```
+
+
+### Los municipos con mas casos
+
+```{r}
+# Package
+library(treemap)
+
+# Plot
+treemap(by_map_depart,
+            
+            # data
+            index="COVID19_Colombia$Ciudad.de.ubicación",
+            vSize="n",
+            type="index",
+            
+            
+            # Main
+            title="",
+            palette="Dark2",
+
+            # Borders:
+            border.col=c("black"),             
+            border.lwds=1,                         
+        
+            # Labels
+            fontsize.labels=0.5,
+            fontcolor.labels="white",
+            fontface.labels=1,            
+            bg.labels=c("transparent"),              
+            align.labels=c("left", "top"),                                  
+            overlap.labels=0.5,
+            inflate.labels=T                        
+
+            
+            )
+
+```
+
+
+Evolución
+=======================================================================
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+```{r}
+
+# plot
+
+by_fecha_reporte_web <- by_fecha_reporte_web %>% rename(Fecha_Reporte_web = `COVID19_Colombia$fecha.reporte.web`) 
+by_fecha_reporte_web %>%
+    ggplot( aes(x=Fecha_Reporte_web, y=n,label = n )) +
+    geom_line(color="dodgerblue", size=1.0) +
+    geom_point(color="darkviolet", size=6.5) +
+    geom_text(aes(label=n), size = 2.0, color="white")+
+    ggtitle("Evolution del Coronavirus por fecha") +
+    ylab("casos coronavirus") +
+    xlab("Mes")
+    
+```
+
+
+
+```{r}
+
+# plot
+
+by_fec_por_tipo %>%
+    ggplot( aes(x=by_fec_por_tipo$`by_Relacionado$fecha.reporte.web` , y=n,label = n , size=by_fec_por_tipo$`by_Relacionado$Tipo` )) +
+    geom_line(color="goldenrod", size=1.0) +
+    geom_point(color="forestgreen", size=5.8) +
+    geom_text(aes(label=n), size = 2, color="white")+
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = c(.60, .95),
+      legend.box.background = element_rect(color="green", size=1),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6)
+    ) +
+    xlab("Fechas Casos Relacionados") +
+    ylab("Cantidad de Casos como Relacionados")
+  
+    
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+```{r}
+ ggplot(byfechan, aes(x = byfechan$`COVID19_Colombia$fecha.reporte.web` , y = n )) +
+	geom_line() +
+	scale_x_date(date_labels = "%b %d") +
+  geom_smooth(method = "loess", se = FALSE, span = 0.6) +
+	theme_classic()+
+  ggtitle("Evolution del Coronavirus por mes") +
+    xlab("Meses") +
+    ylab("Cantidad de Casos ")
+```
+
+
+
+```{r}
+
+# plot
+
+# Make the plot
+seasonal <- ggplot(byfechan, aes(x =day_num, y = n , group = month, color = month)) +
+	geom_line(aes(color = month)) +
+	theme_classic() + 
+	scale_color_manual(values=c("navajowhite", "goldenrod", "dodgerblue", "forestgreen","darkviolet","red", "green", "black"))+
+  ggtitle("Evolution del Coronavirus por mes") +
+    xlab("Dias ") +
+    ylab("Cantidad de Casos ")
+seasonal
+  
+    
+```
+
+
+Caldas
+=======================================================================
+
+Row {data-width=400}
+-----------------------------------------------------------------------
+### Tipo de atención de los pacientes
+```{r}
+#by_caldas_atencion_munuc <- by_caldas_atencion_munuc %>% rename(Tipos_Atención = `by_caldas$atención`) 
+by_caldas_atencion_munuc %>%
+  arrange(n) %>%
+  ggplot( aes(x=by_caldas_atencion_munuc$`by_caldas$Ciudad.de.ubicación`, y=by_caldas_atencion_munuc$n, fill=by_caldas_atencion_munuc$`by_caldas$atención`  ) ) +
+    geom_bar(stat="identity", position=position_stack()) +
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = c(.95, .95),
+      legend.box.background = element_rect(color="green", size=1),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6)
+    ) +
+    xlab("") +
+    ylab("Cantidad de Casos por Tipo Atención CALDAS")
+
+```
+
+
+
+### Tipo de Caso (Importado/ Relacionado) 
+```{r}
+#by_caldas_tipo <- by_caldas_tipo %>% rename(Tipos_Caso = `by_caldas$Tipo`) 
+by_caldas_tipo %>%
+  arrange(n) %>%
+  ggplot( aes(x=by_caldas_tipo$`by_caldas$Ciudad.de.ubicación`, y=by_caldas_tipo$n, fill=by_caldas_tipo$`by_caldas$Tipo` ) ) +
+    geom_bar(stat="identity", position=position_stack()) +
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = c(.95, .95),
+      legend.box.background = element_rect(color="green", size=1),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6)
+    ) +
+    xlab("") +
+    ylab("TIpo (Importado/relacionado) CALDAS")
+
+```
+
+
+Row {data-width=400}
+-----------------------------------------------------------------------
+
+### Cantidad de Casos en Caldas
+```{r}
+#by_caldas_cant <- by_caldas_cant %>% rename(Cantidad_Casos = n) 
+by_caldas_cant %>%
+  arrange(n) %>%
+  ggplot( aes(x=by_caldas_cant$`by_caldas$Ciudad.de.ubicación` , y=by_caldas_cant$n, fill=by_caldas_cant$n ) ) +
+    geom_bar(stat="identity", position=position_stack()) +
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = c(.95, .95),
+      legend.box.background = element_rect(color="green", size=1),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6)
+    ) +
+    xlab("") +
+    ylab("Cantidad de Casos en Caldas")
+```
+
+
+
+### Cantidad 
+```{r}
+
+#install.packages("reactable")
+library(reactable)
+orange_pal <- function(x) rgb(colorRamp(c("#ffe4cc", "#ff9500"))(x), maxColorValue = 255)
+
+by_caldas_cant<- by_caldas_cant %>% rename(Municipios_Caldas = `by_caldas$Ciudad.de.ubicación`) 
+by_caldas_cant<- by_caldas_cant %>% rename(Catidad_Casos = n) 
+
+
+reactable(by_caldas_cant, defaultSorted = list(Catidad_Casos = "desc"), columns = list(
+  Catidad_Casos = colDef(style = function(value) {
+    normalized <- (value - min(by_caldas_cant$Catidad_Casos)) / (max(by_caldas_cant$Catidad_Casos) - min(by_caldas_cant$Catidad_Casos))
+    color <- orange_pal(normalized)
+    list(background = color)
+  })
+))
+ 
+```
+
+Quindío
+=======================================================================
+
+Row {data-width=400}
+-----------------------------------------------------------------------
+### Tipo de atención de los pacientes
+```{r}
+#by_quindio_atencion_munuc <- by_quindio_atencion_munuc %>% rename(Tipos_Atención = `by_quindio$atención`)
+by_quindio_atencion_munuc %>%
+  arrange(n) %>%
+  ggplot( aes(x=by_quindio_atencion_munuc$`by_quindio$Ciudad.de.ubicación`, y=by_quindio_atencion_munuc$n, fill=by_quindio_atencion_munuc$`by_quindio$atención`  ) ) +
+    geom_bar(stat="identity", position=position_stack()) +
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = c(.95, .95),
+      legend.box.background = element_rect(color="green", size=1),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6)
+    ) +
+    xlab("") +
+    ylab("Cantidad de Casos por Tipo Atención Quindío")
+
+```
+
+
+
+### Tipo de Caso (Importado/ Relacionado) 
+```{r}
+#by_quindio_tipo  <- by_quindio_tipo  %>% rename(Tipos_Casos = `by_quindio$Tipo`) 
+by_quindio_tipo %>%
+  arrange(n) %>%
+  ggplot( aes(x=by_quindio_tipo$`by_quindio$Ciudad.de.ubicación`, y=by_quindio_tipo$n, fill=by_quindio_tipo$`by_quindio$Tipo`  ) ) +
+    geom_bar(stat="identity", position=position_stack()) +
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = c(.95, .95),
+      legend.box.background = element_rect(color="green", size=1),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6)
+    ) +
+    xlab("") +
+    ylab("TIpo (Importado/relacionado)QUINDÍO")
+
+```
+
+
+Row {data-width=400}
+-----------------------------------------------------------------------
+
+### Cantidad de Casos en Caldas
+```{r}
+#by_quindio_cant  <- by_quindio_cant  %>% rename(Cantidad_Casos = n) 
+by_quindio_cant %>%
+  arrange(n) %>%
+  ggplot( aes(x=by_quindio_cant$`by_quindio$Ciudad.de.ubicación`, y=by_quindio_cant$n , fill=by_quindio_cant$n ) ) +
+    geom_bar(stat="identity", position=position_stack()) +
+    coord_flip() +
+    theme(
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = c(.95, .95),
+      legend.box.background = element_rect(color="green", size=1),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(6, 6, 6, 6)
+    ) +
+    xlab("") +
+    ylab("Cantidad de Casos en QUINDÍO")
+```
+
+
+### Cantidad 
+```{r}
+library(DT)
+#library(gganimate)
+
+by_quindio_cant %>%
+datatable(rownames = FALSE,
+            colnames = c("Municipio", "Cantidad"),
+            options = list(pageLength = nrow(by_caldas_cant), dom = 'tip'),
+          class = "display",
+    callback = JS("return table;"),
+    caption = NULL, filter = c("none", "bottom", "top"), escape = TRUE,
+    style = "default", width = NULL, height = NULL, elementId = NULL,
+    autoHideNavigation = getOption("DT.autoHideNavigation", NULL),
+    selection = c("multiple", "single", "none"), extensions = list(),
+    plugins = NULL, editable = FALSE)
+
+
+
+ 
+```
+
+SIR
+=======================================================================
+Row
+-------------------------------------
+    
+### Elpicodelapandemia {.value-box}
+    
+```{r}
+#el pico de la pandemia
+fit <- fitted_cumulative_incidence
+
+
+# peak of pandemic
+pico <- fit[fit$I == max(fit$I), c("Date", "I")]
+valueBox(value = format(pico,digits=3),
+      caption = "Supuestos  pico pandemia - Fecha y Numero Infectados", 
+      icon = "fas fa-user-md", 
+      color = "maroon")
+```
+
+### casosseveros {.value-box} 
+
+```{r} 
+# severe cases
+max_infected <- max(fit$I)
+max <- max_infected * 0.2
+
+
+valueBox(value = paste(format(max,digits=3)),
+      caption = "Supuestos Casos severos con Covid19", 
+      icon = "fas fa-user-md", 
+      color = "forestgreen")
+
+```
+
+### casosUCI {.value-box} 
+
+```{r} 
+
+# casos necesitan UCI
+uci <-max_infected * 0.06
+valueBox(value = paste(format(uci,digits=3)),
+      caption = "Supuestos Casos necesitarían UCI", 
+      icon = "fas fa-user-md", 
+      color = "forestgreen")
+```
+
+### casosfallecidos {.value-box} 
+
+```{r} 
+
+# fallecidos supuestos 4.5% escala de fatalidad
+fallecidos <- max_infected * 0.045
+valueBox(value = paste(format(fallecidos,digits=3)),
+      caption = "Supuestos Casos fallecidos supuestos", 
+      icon = "fas fa-user-md", 
+      color = "gray")
+```
+
+Row
+-------------------------------------
+    
+### SIR Colombia.
+    
+```{r}
+#SIR
+# plot the data
+library(ggplot2)
+fitted_cumulative_incidence %>%
+  ggplot(aes(x = Date)) +
+  geom_line(aes(y = I), colour = "maroon") +
+  geom_point(aes(y = cumulative_incident_cases), colour = "forestgreen") +
+  labs(
+    y = "Infectados acumulados",
+    title = "COVID-19 casos esperados SIR model VS casos observados",
+    subtitle = "(marrón = confirmados esperados por SIR, verde = observados)"
+  ) +
+  theme_minimal()
+```
+    
+### SIR Colombia. La variable "y" se mide en una escala log
+
+```{r}
+# plot the data
+fitted_cumulative_incidence %>%
+  ggplot(aes(x = Date)) +
+  geom_line(aes(y = I, colour = "Infecciosos")) +
+  geom_line(aes(y = S, colour = "Susceptibles")) +
+  geom_line(aes(y = R, colour = "Recuperados")) +
+  geom_point(aes(y = cumulative_incident_cases, colour = "Esperados")) +
+  scale_y_log10(labels = scales::comma) +
+  labs(
+    y = "Personas",
+    title = "COVID-19 casos esperados SIR model VS casos observados"
+  ) +
+  scale_colour_manual(
+    name = "",
+    values = c( Susceptibles = "black",Esperados = "forestgreen",Recuperados = "yellow", Infecciosos= "red"),
+    labels = c("Esperados","Infecciosos", "Recuperados", "Susceptibles")
+  ) +
+  theme_minimal()
+
+
+
+```
+
+Time Series 
+=======================================================================
+Column {data-height=600}
+-----------------------------------------------------------------------
+```{r}
+#serie temporal con ggplot2
+ggplot(byfechan, aes(x=byfechan$`COVID19_Colombia$fecha.reporte.web` , y=n))+
+geom_point(colour="dodgerblue")+
+theme_classic()+
+  labs(
+    y = "cantidad Casos",
+    x = "Fechas",
+    title = "Casos Covid ")
+
+```
+
+
+```{r}
+datebreaks <- seq(as.Date("2020-03-02"), as.Date("2020-10-26"), by="1 week")
+
+
+#times series por semana casos covid 19
+ggplot(byfechan, aes(x=byfechan$`COVID19_Colombia$fecha.reporte.web`, y=n))+
+    geom_point(colour="forestgreen")+
+    scale_x_date(breaks=datebreaks)+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle=30, hjust=1))+
+    labs(
+    y = "cantidad Casos",
+    x = "semanas",
+    title = "Casos Covid por semana")
+
+
+```
+
+Column {data-height=600}
+-----------------------------------------------------------------------
+```{r}
+# para mostrar solo el día y el mes, debemos usarlabels=date_format("%d %b")
+ggplot(byfechan, aes(x=byfechan$`COVID19_Colombia$fecha.reporte.web`, y=n))+
+    geom_point(colour="darkviolet")+
+    scale_x_date(breaks=datebreaks,labels=date_format("%d %b"))+
+    theme_classic()+
+    theme(axis.text.x = element_text(angle=30, hjust=1))+
+  labs(
+    y = "cantidad Casos",
+    x = "semanas",
+    title = "Casos Covid por semana")
+
+```
+
+```{r}
+
+
+ggplot(byfechan, aes(x = byfechan$`COVID19_Colombia$fecha.reporte.web`, y = n )) +
+	geom_line(color = "goldenrod") +
+	scale_x_date(date_labels = "%b %d",date_breaks = "7 day") +
+	theme_classic()+
+   ggtitle("Evolution del Coronavirus semanal") +
+   xlab("Semanal ") +
+   ylab("Cantidad de Casos ")
+
+```
+
+
+
+ForeCasting 
+=======================================================================
+Column {data-height=400}
+-----------------------------------------------------------------------
+```{r}
+   ds <-  byfechan$`COVID19_Colombia$fecha.reporte.web`
+   y <-  byfechan$n
+   df <- data.frame(ds,y)
+   
+   #procedimiento de pronóstico automático
+   library(prophet)
+   m <- prophet(df)
+   
+   #predecir
+   future = make_future_dataframe(m,periods = 56)
+   forecast <- predict(m, future)
+   
+   # plot forecast
+   plot(m,forecast)
+   
+   
+   
+     
+```
+
+```{r}
+
+
+dyplot.prophet(m, forecast)
+  
+```
+
+Column {data-height=400}
+-----------------------------------------------------------------------
+```{r}
+
+
+#forescats componentes
+   prophet_plot_components(m,forecast)
+   
+   #model 
+   pred <- forecast$yhat[1:226]
+   actual <- m$history$y
+   plot(actual,pred )  +
+   abline(lm(pred~actual), col ="forestgreen")
+  
+```
+
+
+
+Información
+=======================================================================
+
+
+**Datos** 
+* 20 de octbre de  2020 actualización de los datos objeto del uso y/o transformación.
+https://www.datos.gov.co/Salud-y-Protecci-n-Social/Casos-positivos-de-COVID-19-en-Colombia/gt2j-8ykr/data
+
+
+**Modelo SIR (Susceptible, Infectada y Recuperada)**
+
+SIR <- function(time, state, parameters) {
+  par <- as.list(c(state, parameters))
+  with(par, {
+    dS <- -beta/N * I * S
+    dI <- beta/N * I * S - gamma * I
+    dR <- gamma * I
+    list(c(dS, dI, dR))
+    })
+}
+
+**Aprendizaje r**
+
+La información esta haciendo utilizada con fines de educación sobre el Leguaje de programación R.
+
+**Packages**
+
+* Dashboard interface - the [flexdashboard](https://rmarkdown.rstudio.com/flexdashboard/) package. 
+* Visualization - the [plotly](https://plot.ly/r/) package for the plots and [leaflet](https://rstudio.github.io/leaflet/) for the map
+* Data manipulation - [dplyr](https://dplyr.tidyverse.org/), and [tidyr](https://tidyr.tidyverse.org/)
+* Tables - the [DT](https://rstudio.github.io/DT/) package
+*Solvers for Initial Value Problems of Differential Equations (ODE, DAE, DDE) - install.packages("deSolve")
+ library(deSolve)
+
+**Referencias**
+
+* Modelo SIR
+Para enteder como funciona el Modelo SIR, leí los links que se muestran a continuación para utilizarlo con los datos abiertos de Colombia, para crear el DashBoard y el Modelo SIR.
+
+https://www.statsandr.com/blog/how-to-create-a-simple-coronavirus-dashboard-specific-to-your-country-in-r/
+
+https://www.statsandr.com/blog/covid-19-in-belgium/#introduction
+
+https://blog.ephorie.de/epidemiology-how-contagious-is-novel-coronavirus-2019-ncov
+
+**N población total  colombiana 48 258 494 segun el DANE**
+
+https://www.dane.gov.co/index.php/estadisticas-por-tema/demografia-y-poblacion/censo-nacional-de-poblacion-y-vivenda-2018/cuantos-somos
